@@ -9,7 +9,7 @@ import {
   formatDateLabel, detectBookingMode,
 } from "@/lib/booking-utils";
 
-const DEFAULT_CATEGORY_ID = "159";
+
 
 
 export default function BookingPage() {
