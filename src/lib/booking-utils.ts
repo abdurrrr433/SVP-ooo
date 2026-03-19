@@ -88,6 +88,10 @@ export function getCenterKey(item: any): string {
   return String(getSessionSiteId(item) || getSessionId(item) || "");
 }
 
+export function getPrometricCodes(item: any): any[] {
+  return pickArray(item?.prometric_codes || item?.languages || item?.language_codes);
+}
+
 function getAvailableDateCity(item: any): string {
   if (!item || typeof item === "string") return "";
   const sc = item.site_city;
