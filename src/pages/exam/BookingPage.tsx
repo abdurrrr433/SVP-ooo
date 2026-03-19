@@ -306,7 +306,7 @@ export default function BookingPage() {
         <div className="form-grid">
           <div className="field-block">
             <span>Category ID</span>
-            <div className="readonly-value">{categoryId || DEFAULT_CATEGORY_ID}</div>
+            <div className="readonly-value">{categoryId || "—"}</div>
           </div>
           <div className="field-block">
             <span>Methodology</span>
