@@ -31,6 +31,7 @@ export default function OtpPage() {
     setMsg("Verifying OTP...");
     try {
       const res = await apiAuth("/otp-verify", { login, password, otp_attempt: otpAttempt, otp_method: otpMethod });
+      authLogin(res.accessToken, res.user || res);
       sessionStorage.removeItem("tmp_login");
       sessionStorage.removeItem("tmp_password");
       sessionStorage.removeItem("tmp_otpMethod");

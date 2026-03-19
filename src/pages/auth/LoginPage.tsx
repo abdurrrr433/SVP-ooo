@@ -41,6 +41,7 @@ export default function LoginPage() {
     setTokenMsg("Verifying bearer token...");
     try {
       const res = await apiAuth("/token-login", { login: tokenLogin, token: svpToken });
+      authLogin(res.accessToken, res.user || res);
       setTokenMsg("Login successful. Redirecting...");
       navigate("/dashboard");
     } catch (err: any) {
