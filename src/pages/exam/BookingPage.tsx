@@ -222,7 +222,7 @@ export default function BookingPage() {
 
   async function bookReservation() {
     if (!sessionId) { setError("Select test center / session first"); return; }
-    try { await api(`/api/svp/exam-session/${encodeURIComponent(sessionId)}?locale=en`); }
+    try { await api(`/exam-session/${encodeURIComponent(sessionId)}?locale=en`); }
     catch (err: any) { setError(err?.message || "Selected exam session is no longer available"); return; }
     const sessionCodes = getPrometricCodes(selectedSession);
     const effectiveLanguageCode = languageCode || selectedOccupation?.languageCodes?.[0]?.code || sessionCodes?.[0]?.code || sessionCodes?.[0]?.language_code || "";
