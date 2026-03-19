@@ -10,7 +10,7 @@ import {
 } from "@/lib/booking-utils";
 
 const DEFAULT_CATEGORY_ID = "159";
-const DEFAULT_BACKEND_URL = "https://aci-api-production.up.railway.app";
+
 
 export default function BookingPage() {
   const [searchParams] = useSearchParams();
