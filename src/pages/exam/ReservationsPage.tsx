@@ -1,29 +1,46 @@
-import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { api, getBackendUrl } from "@/lib/api";
-import { pickArray } from "@/lib/booking-utils";
-import DashboardLayout from "@/components/DashboardLayout";
-import { Button } from "@/components/ui/button";
+import { useEffect, useState } from "react";
+import { api } from "@/lib/api";
 
-function value(item: any, keys: string[]): string {
+const DEFAULT_BACKEND_URL = "https://aci-api-production.up.railway.app";
+
+function pickArray(payload: any): any[] {
+  if (Array.isArray(payload)) return payload;
+  const candidates = [
+    payload?.data, payload?.items, payload?.result, payload?.payload,
+    payload?.exam_reservations, payload?.reservations,
+    payload?.data?.items, payload?.data?.result, payload?.data?.payload,
+    payload?.data?.exam_reservations, payload?.data?.reservations,
+    payload?.result?.items, payload?.result?.exam_reservations,
+    payload?.payload?.items, payload?.payload?.exam_reservations,
+  ];
+  for (const item of candidates) { if (Array.isArray(item)) return item; }
+  return [];
+}
+
+function value(item: any, keys: string[]) {
   for (const key of keys) {
-    if (item?.[key] != null && item[key] !== "") return String(item[key]);
-    if (item?.data?.[key] != null) return String(item.data[key]);
-    if (item?.exam_session?.[key] != null) return String(item.exam_session[key]);
-    if (item?.test_center?.[key] != null) return String(item.test_center[key]);
+    if (item?.[key] !== undefined && item?.[key] !== null && item?.[key] !== "") return item[key];
+    if (item?.data?.[key] !== undefined && item?.data?.[key] !== null && item?.data?.[key] !== "") return item.data[key];
+    if (item?.exam_session?.[key] !== undefined && item?.exam_session?.[key] !== null && item?.exam_session?.[key] !== "") return item.exam_session[key];
+    if (item?.test_center?.[key] !== undefined && item?.test_center?.[key] !== null && item?.test_center?.[key] !== "") return item.test_center[key];
   }
   return "";
 }
 
-const getId = (i: any) => value(i, ["id", "reservation_id", "exam_reservation_id"]);
-const getOccId = (i: any) => value(i, ["occupation_id"]) || i?.occupation?.id || "";
-const getMethod = (i: any) => value(i, ["methodology_type", "methodology"]) || "in_person";
-const getStatus = (i: any) => value(i, ["reservation_status", "status", "payment_status"]) || "Unknown";
-const getDate = (i: any) => value(i, ["exam_date", "scheduled_at", "date", "test_date", "start_at"]) || i?.exam_session?.test_date || "";
-const getCenter = (i: any) => value(i, ["test_center_name", "name", "site_city"]) || i?.exam_session?.test_center?.name || "-";
-const getSiteId = (i: any) => value(i, ["site_id"]) || i?.exam_session?.test_center?.site_id || "";
-const getLang = (i: any) => value(i, ["language_code", "prometric_code"]) || "-";
-const getSessionId = (i: any) => value(i, ["exam_session_id"]) || i?.exam_session?.id || "";
+function getReservationId(item: any) { return value(item, ["id", "reservation_id", "exam_reservation_id"]); }
+function getOccupationId(item: any) { return value(item, ["occupation_id"]) || item?.occupation?.id || ""; }
+function getMethodology(item: any) { return value(item, ["methodology_type", "methodology"]) || "in_person"; }
+function getStatus(item: any) { return value(item, ["reservation_status", "status", "payment_status"]) || "Unknown"; }
+function getDate(item: any) {
+  return value(item, ["exam_date", "scheduled_at", "date", "examDay", "test_date", "start_at_in_browser_time_zone", "start_at"]) || item?.exam_session?.test_date || item?.exam_session?.start_at_in_browser_time_zone || "";
+}
+function getCenterName(item: any) { return value(item, ["test_center_name", "name", "site_city", "city"]) || item?.exam_session?.test_center?.name || `Site #${getSiteId(item) || "-"}`; }
+function getSiteId(item: any) { return value(item, ["site_id"]) || item?.prometric_data?.site_id || item?.exam_session?.test_center?.site_id || ""; }
+function getLanguageCode(item: any) { return value(item, ["language_code", "prometric_code", "code"]) || "-"; }
+function getSessionId(item: any) { return value(item, ["exam_session_id"]) || item?.exam_session?.id || ""; }
+function canReschedule(item: any) { return Boolean(item?.can_be_rescheduled); }
+function getRescheduleReason(item: any) { return item?.cancellation_reason || item?.violation_reason || item?.reservation_status || ""; }
 
 export default function ReservationsPage() {
   const navigate = useNavigate();
@@ -34,169 +51,133 @@ export default function ReservationsPage() {
   const [error, setError] = useState("");
 
   async function loadReservations() {
-    setLoading(true);
-    setError("");
+    setLoading(true); setError("");
     try {
       const data = await api("/api/svp/exam-reservations?locale=en");
-      const list = pickArray(data);
-      setItems(list);
-      if (!list.length) setError("No booked reservations found.");
-    } catch (err: any) {
-      setItems([]);
-      setError(err?.message || "Failed to load reservations");
-    } finally {
-      setLoading(false);
-    }
+      const reservations = pickArray(data);
+      setItems(reservations);
+      if (!reservations.length) setError("No booked reservations found from the API for this account.");
+    } catch (err: any) { setItems([]); setError(err?.message || "Failed to load booked reservations"); }
+    finally { setLoading(false); }
   }
 
   useEffect(() => { loadReservations(); }, []);
 
   async function startReschedule(item: any) {
-    const rid = getId(item);
-    const oid = getOccId(item);
-    if (!rid || !oid) { setError("Missing reservation/occupation ID"); return; }
-    setLoadingId(rid);
-    setError("");
+    const reservationId = getReservationId(item);
+    const occupationId = getOccupationId(item);
+    if (!reservationId || !occupationId) { setError("Missing reservation ID or occupation ID"); return; }
+    setLoadingId(String(reservationId)); setError("");
     try {
       await api("/api/svp/reservation-credits/use", {
         method: "POST",
-        body: {
-          methodology_type: getMethod(item),
-          reservation_id: Number(rid),
-          occupation_id: Number(oid),
-        },
+        body: { methodology_type: getMethodology(item), reservation_id: Number(reservationId), occupation_id: Number(occupationId) },
       });
-      const params = new URLSearchParams({
-        reschedule: "1",
-        reservationId: rid,
-        occupationId: oid,
-        methodology: getMethod(item),
-        examDate: getDate(item),
-        siteId: getSiteId(item),
-        siteCity: value(item, ["site_city", "city"]),
-        languageCode: getLang(item),
+      const query = new URLSearchParams({
+        reschedule: "1", reservationId: String(reservationId), occupationId: String(occupationId),
+        methodology: String(getMethodology(item)), examDate: String(getDate(item) || ""),
+        siteId: String(getSiteId(item) || ""), siteCity: String(value(item, ["site_city", "city"]) || ""),
+        languageCode: String(getLanguageCode(item) || ""),
       });
-      navigate(`/exam/booking?${params}`);
-    } catch (err: any) {
-      setError(err?.message || "Failed to start reschedule");
-    } finally {
-      setLoadingId("");
-    }
+      navigate(`/exam/booking?${query.toString()}`);
+    } catch (err: any) { setError(err?.message || "Failed to start reschedule"); }
+    finally { setLoadingId(""); }
   }
 
   async function downloadTicket(item: any) {
-    const rid = getId(item);
-    if (!rid) { setError("Missing reservation ID"); return; }
-    setDownloadingId(rid);
-    setError("");
+    const reservationId = getReservationId(item);
+    if (!reservationId) { setError("Missing reservation ID for ticket download"); return; }
+    setDownloadingId(String(reservationId)); setError("");
     try {
-      const accessToken = localStorage.getItem("accessToken");
-      const base = getBackendUrl();
-      const response = await fetch(`${base}/api/svp/tickets/${encodeURIComponent(rid)}/show-pdf?locale=en`, {
-        method: "GET",
-        headers: {
-          Accept: "*/*",
-          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-        },
-        credentials: "include",
+      const accessToken = localStorage.getItem("accessToken") || "";
+      const base = DEFAULT_BACKEND_URL;
+      const response = await fetch(`${base}/api/svp/tickets/${encodeURIComponent(reservationId)}/show-pdf?locale=en`, {
+        method: "GET", headers: { Accept: "*/*", ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) }, credentials: "include",
       });
-      if (!response.ok) throw new Error(await response.text() || "Failed to download");
-
-      const ct = response.headers.get("content-type") || "";
-      const disp = response.headers.get("content-disposition") || "";
-      const fnMatch = disp.match(/filename\*?=(?:UTF-8'')?["']?([^"';]+)/i);
-      const fileName = fnMatch ? decodeURIComponent(fnMatch[1]) : `ticket-${rid}.pdf`;
-
-      const trigger = (href: string, name: string) => {
-        const a = document.createElement("a");
-        a.href = href; a.download = name;
-        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      if (!response.ok) { throw new Error(await response.text() || "Failed to download ticket PDF"); }
+      const contentType = response.headers.get("content-type") || "";
+      const disposition = response.headers.get("content-disposition") || "";
+      const fallbackFileName = `ticket-${reservationId}.pdf`;
+      const fileNameMatch = disposition.match(/filename\*?=(?:UTF-8'')?["']?([^"';]+)["']?/i);
+      const fileName = fileNameMatch ? decodeURIComponent(fileNameMatch[1]) : fallbackFileName;
+      const triggerDownload = (href: string, name: string) => {
+        const anchor = document.createElement("a"); anchor.href = href; anchor.download = name;
+        document.body.appendChild(anchor); anchor.click(); document.body.removeChild(anchor);
       };
-
-      if (ct.includes("application/json")) {
+      if (contentType.includes("application/json")) {
         const data = await response.json();
         const url = data?.url || data?.pdf_url || data?.data?.url || data?.data?.pdf_url;
-        if (url) { trigger(String(url), fileName); return; }
-        throw new Error("PDF URL not found");
+        if (!url) throw new Error("Ticket PDF URL not found in response");
+        triggerDownload(String(url), fallbackFileName); return;
       }
-
       const blob = await response.blob();
       const blobUrl = URL.createObjectURL(blob);
-      trigger(blobUrl, fileName);
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
-    } catch (err: any) {
-      setError(err?.message || "Failed to download ticket");
-    } finally {
-      setDownloadingId("");
-    }
+      triggerDownload(blobUrl, fileName);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+    } catch (err: any) { setError(err?.message || "Failed to download ticket"); }
+    finally { setDownloadingId(""); }
   }
 
   return (
-    <DashboardLayout>
-      <div className="mx-auto max-w-4xl p-6 animate-fade-in">
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+    <div className="page-shell">
+      <div className="page-card">
+        <div className="page-head">
           <div>
-            <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">My bookings</p>
-            <h1 className="mt-1 text-2xl font-bold text-foreground">Booked Exams</h1>
-            <p className="mt-1 text-sm text-muted-foreground">Your existing reservations appear here automatically.</p>
+            <p className="eyebrow">My bookings</p>
+            <h1>Booked exams</h1>
+            <p className="muted">Your existing bookings should appear here automatically when the page opens.</p>
           </div>
-          <div className="flex gap-2">
-            <Link to="/dashboard"><Button variant="outline" size="sm">Dashboard</Button></Link>
-            <Button variant="outline" size="sm" onClick={loadReservations} disabled={loading}>
+          <div className="actions">
+            <Link to="/dashboard" className="secondary-btn">Dashboard</Link>
+            <button className="secondary-btn" type="button" onClick={loadReservations} disabled={loading}>
               {loading ? "Loading..." : "Refresh"}
-            </Button>
+            </button>
           </div>
         </div>
 
-        {error && <div className="mb-4 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
-        {loading && <div className="rounded-lg border border-border bg-card p-8 text-center text-muted-foreground">Loading reservations...</div>}
-        {!loading && !items.length && !error && (
-          <div className="rounded-lg border border-border bg-card p-8 text-center text-muted-foreground">No reservations found.</div>
-        )}
+        {error ? <div className="status-card status-error">{error}</div> : null}
+        {loading ? <div className="empty-card">Loading booked reservations...</div> : null}
+        {!loading && !items.length ? (
+          <div className="empty-card">No reservations are available to show.</div>
+        ) : null}
 
-        <div className="grid gap-4">
+        <div className="reservation-grid">
           {items.map((item) => {
-            const rid = getId(item);
+            const rid = getReservationId(item);
+            const sid = getSessionId(item);
             return (
-              <div key={rid || Math.random()} className="rounded-xl border border-border bg-card p-5 shadow-sm">
-                <div className="mb-4 flex items-center justify-between">
-                  <h2 className="text-lg font-bold text-foreground">#{rid || "-"}</h2>
-                  <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
-                    {getStatus(item)}
-                  </span>
+              <div className="reservation-card" key={String(rid || sid || "reservation-item")}>
+                <div className="reservation-top">
+                  <h2>#{rid || "-"}</h2>
+                  <span>{getStatus(item)}</span>
                 </div>
-
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                  {[
-                    { label: "Test center", val: getCenter(item) },
-                    { label: "Exam date", val: getDate(item) || "-" },
-                    { label: "Occupation ID", val: getOccId(item) || "-" },
-                    { label: "Session ID", val: getSessionId(item) || "-" },
-                    { label: "Language", val: getLang(item) },
-                    { label: "Site ID", val: getSiteId(item) || "-" },
-                  ].map((d) => (
-                    <div key={d.label}>
-                      <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{d.label}</span>
-                      <strong className="mt-0.5 block text-sm text-foreground">{d.val}</strong>
-                    </div>
-                  ))}
+                <div className="detail-list">
+                  <div><span>Test center</span><strong>{getCenterName(item)}</strong></div>
+                  <div><span>Exam date</span><strong>{getDate(item) || "-"}</strong></div>
+                  <div><span>Occupation ID</span><strong>{getOccupationId(item) || "-"}</strong></div>
+                  <div><span>Session ID</span><strong>{getSessionId(item) || "-"}</strong></div>
+                  <div><span>Language</span><strong>{getLanguageCode(item)}</strong></div>
+                  <div><span>Site ID</span><strong>{getSiteId(item) || "-"}</strong></div>
+                  <div><span>Methodology</span><strong>{getMethodology(item) || "-"}</strong></div>
                 </div>
-
-                <div className="mt-4 flex gap-2">
-                  {item?.can_be_rescheduled && (
-                    <Button size="sm" variant="outline" onClick={() => startReschedule(item)} disabled={loadingId === rid}>
-                      {loadingId === rid ? "Processing..." : "Reschedule"}
-                    </Button>
-                  )}
-                  <Button size="sm" variant="outline" onClick={() => downloadTicket(item)} disabled={downloadingId === rid}>
-                    {downloadingId === rid ? "Downloading..." : "Download Ticket"}
-                  </Button>
-                </div>
+                <button className="primary-btn" type="button" onClick={() => startReschedule(item)}
+                  disabled={loadingId === String(rid) || !canReschedule(item)}>
+                  {loadingId === String(rid) ? "Opening..." : canReschedule(item) ? "Reschedule" : "Reschedule unavailable"}
+                </button>
+                <button className="secondary-btn" type="button" onClick={() => downloadTicket(item)}
+                  disabled={downloadingId === String(rid)} style={{ marginTop: "10px", width: "100%" }}>
+                  {downloadingId === String(rid) ? "Downloading..." : "Download Ticket PDF"}
+                </button>
+                {!canReschedule(item) && getRescheduleReason(item) ? (
+                  <small style={{ display: "block", marginTop: "8px", color: "#8b3d3d" }}>
+                    Reason: {String(getRescheduleReason(item))}
+                  </small>
+                ) : null}
               </div>
             );
           })}
         </div>
       </div>
-    </DashboardLayout>
+    </div>
   );
 }
