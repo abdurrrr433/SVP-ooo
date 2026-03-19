@@ -78,9 +78,7 @@ function isAllowedOrigin(origin) {
 }
 
 app.use(cors({
-  origin: function(origin, cb){
-    return cb(null, isAllowedOrigin(origin));
-  },
+  origin: true,
   credentials: true,
 }));
 
