@@ -1,6 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { apiAuth, clearSession, getSession } from "@/lib/api";
 
 function decodeJwtPayload(token: string) {
   try {
@@ -20,9 +20,9 @@ export default function DashboardPage() {
   const [loggingOut, setLoggingOut] = useState(false);
 
   useEffect(() => {
-    const token = localStorage.getItem("accessToken");
-    if (!token) { navigate("/auth/login"); return; }
-    const payload = decodeJwtPayload(token);
+    const { accessToken } = getSession();
+    if (!accessToken) { navigate("/auth/login"); return; }
+    const payload = decodeJwtPayload(accessToken);
     setMe(payload ? { login: payload.login || "User" } : { login: "User" });
     setLoading(false);
   }, [navigate]);
@@ -31,11 +31,12 @@ export default function DashboardPage() {
     setLoggingOut(true);
     setError("");
     try {
-      await api("/api/auth/logout", { method: "POST" });
+      const { sessionId } = getSession();
+      await apiAuth("/logout", { sessionId });
     } catch (err: any) {
       setError(err?.message || "Logout failed");
     } finally {
-      localStorage.removeItem("accessToken");
+      clearSession();
       setLoggingOut(false);
       navigate("/auth/login");
     }
