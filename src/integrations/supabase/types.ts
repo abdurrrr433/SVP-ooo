@@ -14,7 +14,92 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      svp_sessions: {
+        Row: {
+          created_at: string
+          id: string
+          refresh_expires_at: string
+          refresh_token_hash: string
+          revoked_at: string | null
+          svp_access_enc: string | null
+          svp_access_exp: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          refresh_expires_at: string
+          refresh_token_hash: string
+          revoked_at?: string | null
+          svp_access_enc?: string | null
+          svp_access_exp?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          refresh_expires_at?: string
+          refresh_token_hash?: string
+          revoked_at?: string | null
+          svp_access_enc?: string | null
+          svp_access_exp?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "svp_sessions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "svp_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      svp_users: {
+        Row: {
+          approved_at: string | null
+          created_at: string
+          email: string | null
+          full_name: string | null
+          id: string
+          is_approved: boolean
+          login: string
+          password_hash: string | null
+          phone: string | null
+          role: string
+          svp_user_id: number | null
+        }
+        Insert: {
+          approved_at?: string | null
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          is_approved?: boolean
+          login: string
+          password_hash?: string | null
+          phone?: string | null
+          role?: string
+          svp_user_id?: number | null
+        }
+        Update: {
+          approved_at?: string | null
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          is_approved?: boolean
+          login?: string
+          password_hash?: string | null
+          phone?: string | null
+          role?: string
+          svp_user_id?: number | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
