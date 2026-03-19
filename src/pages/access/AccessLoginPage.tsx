@@ -16,8 +16,10 @@ export default function AccessLoginPage() {
     setMsg("");
     try {
       await login(email, password);
-      setMsg("Login successful. Redirecting...");
-      navigate("/access/dashboard");
+      // Store email for SVP login pre-fill
+      sessionStorage.setItem("portal_login", email);
+      setMsg("Login successful. Redirecting to verification...");
+      navigate("/auth/login");
     } catch (err: any) {
       setMsg(err?.data?.message || err?.message || "Login failed");
     } finally {
