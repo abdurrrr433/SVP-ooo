@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { api } from "@/lib/api";
+import { apiAuth } from "@/lib/api";
 
 export default function LoginPage() {
   const [login, setLogin] = useState("");
@@ -23,10 +23,7 @@ export default function LoginPage() {
     e.preventDefault();
     setMsg("Sending OTP...");
     try {
-      await api("/api/auth/login", {
-        method: "POST",
-        body: { login, password, otpMethod },
-      });
+      await apiAuth("/login", { login, password, otp_method: otpMethod });
       sessionStorage.setItem("tmp_login", login);
       sessionStorage.setItem("tmp_password", password);
       sessionStorage.setItem("tmp_otpMethod", otpMethod);
@@ -41,11 +38,7 @@ export default function LoginPage() {
     e.preventDefault();
     setTokenMsg("Verifying bearer token...");
     try {
-      const res = await api("/api/auth/token-login", {
-        method: "POST",
-        body: { login: tokenLogin, token: svpToken },
-      });
-      localStorage.setItem("accessToken", res.accessToken);
+      const res = await apiAuth("/token-login", { login: tokenLogin, token: svpToken });
       setTokenMsg("Login successful. Redirecting...");
       navigate("/dashboard");
     } catch (err: any) {

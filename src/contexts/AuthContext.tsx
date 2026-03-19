@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
-import { api } from "@/lib/api";
+import { apiAuth, clearSession, getSession } from "@/lib/api";
 
 interface User {
   login: string;
@@ -44,9 +43,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem("accessToken");
-    if (token) {
-      const payload = decodeJwtPayload(token);
+    const { accessToken } = getSession();
+    if (accessToken) {
+      const payload = decodeJwtPayload(accessToken);
       setUser(payload ? { login: payload.login || "User" } : { login: "User" });
     }
     setLoading(false);
@@ -64,9 +63,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logoutFn = useCallback(async () => {
     try {
-      await api("/api/auth/logout", { method: "POST" });
+      const { sessionId } = getSession();
+      await apiAuth("/logout", { sessionId });
     } catch {}
-    localStorage.removeItem("accessToken");
+    clearSession();
     setUser(null);
   }, []);
 

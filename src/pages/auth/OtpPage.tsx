@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { api } from "@/lib/api";
+import { apiAuth } from "@/lib/api";
 
 export default function OtpPage() {
   const navigate = useNavigate();
@@ -28,11 +28,7 @@ export default function OtpPage() {
     e.preventDefault();
     setMsg("Verifying OTP...");
     try {
-      const res = await api("/api/auth/otp-verify", {
-        method: "POST",
-        body: { login, password, otpAttempt, otpMethod },
-      });
-      localStorage.setItem("accessToken", res.accessToken);
+      const res = await apiAuth("/otp-verify", { login, password, otp_attempt: otpAttempt, otp_method: otpMethod });
       sessionStorage.removeItem("tmp_login");
       sessionStorage.removeItem("tmp_password");
       sessionStorage.removeItem("tmp_otpMethod");
