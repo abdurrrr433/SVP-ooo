@@ -251,10 +251,10 @@ export default function BookingPage() {
   }
 
   async function openTicketPdf(nextReservationId: string) {
-    const accessToken = localStorage.getItem("accessToken") || "";
-    const base = DEFAULT_BACKEND_URL;
-    const response = await fetch(`${base}/api/svp/tickets/${encodeURIComponent(nextReservationId)}/show-pdf?locale=en`, {
-      method: "GET", headers: { Accept: "*/*", ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) }, credentials: "include",
+    const { accessToken } = getSession();
+    const base = getBackendUrl();
+    const response = await fetch(`${base}/svp-proxy/tickets/${encodeURIComponent(nextReservationId)}/show-pdf?locale=en`, {
+      method: "GET", headers: { Accept: "*/*", ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
     });
     if (!response.ok) { throw new Error(await response.text() || "Failed to open ticket PDF"); }
     const contentType = response.headers.get("content-type") || "";
