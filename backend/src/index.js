@@ -38,13 +38,18 @@ app.use(helmet());
 app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
 
+const hardcodedOrigins = [
+  'https://svp-book.vercel.app',
+  'https://svp-book-abdur-razzak-s-projects.vercel.app',
+  'https://aci-root.vercel.app',
+];
 const origins = (process.env.CORS_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
+const allOrigins = [...new Set([...hardcodedOrigins, ...origins])];
 const vercelProject = (process.env.VERCEL_PROJECT_SLUG || '').trim().toLowerCase();
 
 function isAllowedOrigin(origin) {
   if (!origin) return true;
-  if (origins.length === 0) return true;
-  if (origins.includes(origin)) return true;
+  if (allOrigins.includes(origin)) return true;
 
   // Allow Vercel preview deployments for this project without listing each random URL.
   if (vercelProject) {
