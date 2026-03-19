@@ -170,7 +170,7 @@ export default function BookingPage() {
       setLoadingSessions(true); setError("");
       try {
         const params = new URLSearchParams({ category_id: String(categoryId), city: String(selectedCity), exam_date: availableDate, locale: "en" });
-        const data = await api(`/api/svp/exam-sessions?${params.toString()}`);
+        const data = await api(`/exam-sessions?${params.toString()}`);
         if (!active) return; setSessions(pickArray(data));
       } catch (err: any) { if (!active) return; setSessions([]); setError(err?.message || "Failed to load test sessions"); }
       finally { if (active) setLoadingSessions(false); }
