@@ -14,6 +14,60 @@ export type Database = {
   }
   public: {
     Tables: {
+      accounts: {
+        Row: {
+          agency_id: string | null
+          created_at: string
+          created_by_id: string | null
+          email: string
+          id: string
+          name: string
+          password: string
+          role: Database["public"]["Enums"]["access_role"]
+          status: Database["public"]["Enums"]["account_status"]
+          updated_at: string
+        }
+        Insert: {
+          agency_id?: string | null
+          created_at?: string
+          created_by_id?: string | null
+          email: string
+          id?: string
+          name: string
+          password: string
+          role?: Database["public"]["Enums"]["access_role"]
+          status?: Database["public"]["Enums"]["account_status"]
+          updated_at?: string
+        }
+        Update: {
+          agency_id?: string | null
+          created_at?: string
+          created_by_id?: string | null
+          email?: string
+          id?: string
+          name?: string
+          password?: string
+          role?: Database["public"]["Enums"]["access_role"]
+          status?: Database["public"]["Enums"]["account_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accounts_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "accounts_created_by_id_fkey"
+            columns: ["created_by_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       svp_sessions: {
         Row: {
           created_at: string
@@ -108,7 +162,8 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      access_role: "ADMIN" | "AGENCY" | "USER"
+      account_status: "PENDING" | "ACTIVE" | "BLOCKED"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -235,6 +290,9 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      access_role: ["ADMIN", "AGENCY", "USER"],
+      account_status: ["PENDING", "ACTIVE", "BLOCKED"],
+    },
   },
 } as const
