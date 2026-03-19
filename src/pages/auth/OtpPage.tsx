@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 export default function OtpPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { login: authLogin } = useAuth();
 
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
