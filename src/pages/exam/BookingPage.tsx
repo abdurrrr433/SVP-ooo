@@ -82,7 +82,7 @@ export default function BookingPage() {
     (async () => {
       setLoadingOccupations(true); setError("");
       try {
-        const data = await api("/api/svp/occupations?locale=en&per_page=200&page=1");
+        const data = await api("/occupations?locale=en&per_page=200&page=1");
         setOccupations(pickArray(data).map(normalizeOccupation));
       } catch (err: any) { setError(err?.message || "Failed to load occupations"); }
       finally { setLoadingOccupations(false); }
