@@ -185,8 +185,6 @@ const routes: RouteEntry[] = [
   { method: "GET", pattern: /^\/feature-flags$/, svpPath: "/api/v1/individual_labor_space/feature_flags" },
   { method: "GET", pattern: /^\/notifications$/, svpPath: "/api/v1/individual_labor_space/notifications" },
   { method: "GET", pattern: /^\/user-balance\/([^/]+)$/, svpPath: (m) => `/api/v1/individual_labor_space/user_balance/${m[1]}` },
-  { method: "GET", pattern: /^\/test-centers$/, svpPath: "/api/v1/individual_labor_space/test_centers" },
-  { method: "GET", pattern: /^\/test-centers\/([^/]+)$/, svpPath: (m) => `/api/v1/individual_labor_space/test_centers/${m[1]}` },
 ];
 
 function buildPath(basePath: string, queryString: string): string {
@@ -225,6 +223,7 @@ Deno.serve(async (req) => {
         }
       }
     }
+
 
     // ── User balance (auto-detect SVP user ID) ───────────────
     if (req.method === "GET" && path === "/user-balance") {

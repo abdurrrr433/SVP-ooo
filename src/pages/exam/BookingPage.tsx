@@ -1,6 +1,7 @@
 import { Link, useSearchParams } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import { api, getSession, getBackendUrl } from "@/lib/api";
+import { supabase } from "@/integrations/supabase/client";
 import {
   pickArray, normalizeOccupation, normalizeDateValue,
   normalizeAvailableDateEntries, getSessionId, getSessionSiteId, getSessionSiteCity,
@@ -95,20 +96,6 @@ export default function BookingPage() {
       } catch (err: any) { setError(err?.message || "Failed to load occupations"); }
       finally { setLoadingOccupations(false); }
     })();
-    // Fetch test centers to map site_id -> real name
-    (async () => {
-      try {
-        const data = await api("/test-centers?per_page=500&locale=en");
-        const arr = pickArray(data);
-        const map = new Map<string, string>();
-        arr.forEach((tc: any) => {
-          const sid = String(tc?.site_id || tc?.id || "");
-          const name = tc?.name || tc?.test_center_name || "";
-          if (sid && name) map.set(sid, name);
-        });
-        setTestCenterMap(map);
-      } catch { /* test centers name enrichment is optional */ }
-    })();
   }, []);
 
   useEffect(() => {
@@ -199,6 +186,28 @@ export default function BookingPage() {
     })();
     return () => { active = false; };
   }, [selectedCity, availableDate, categoryId]);
+
+  // Fetch real test center names from database
+  useEffect(() => {
+    if (!sessions.length) return;
+    const siteIds = Array.from(new Set(
+      sessions.map((s: any) => Number(s?.test_center?.site_id)).filter((n) => Number.isFinite(n) && n > 0)
+    ));
+    const missing = siteIds.filter((sid) => !testCenterMap.has(String(sid)));
+    if (!missing.length) return;
+    let active = true;
+    (async () => {
+      const { data } = await supabase
+        .from("test_centers")
+        .select("site_id, name")
+        .in("site_id", missing);
+      if (!active || !data?.length) return;
+      const newMap = new Map(testCenterMap);
+      data.forEach((row: any) => newMap.set(String(row.site_id), row.name));
+      setTestCenterMap(new Map(newMap));
+    })();
+    return () => { active = false; };
+  }, [sessions]);
 
   useEffect(() => {
     if (!centerOptions.length) { setSelectedCenterId(""); return; }
