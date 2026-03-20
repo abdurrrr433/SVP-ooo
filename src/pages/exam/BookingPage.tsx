@@ -404,11 +404,15 @@ export default function BookingPage() {
             <span>Exam Session *</span>
             <select value={sessionId} onChange={(e) => setSessionId(e.target.value)} disabled={!filteredSessions.length}>
               <option value="">{loadingSessions ? "Loading sessions..." : "Select session"}</option>
-              {filteredSessions.map((item) => (
-                <option key={getSessionId(item)} value={getSessionId(item)}>
-                  {getSessionCenterName(item)} | Session #{getSessionId(item)}
-                </option>
-              ))}
+              {filteredSessions.map((item) => {
+                const sid = getSessionSiteId(item);
+                const realName = testCenterMap.get(String(sid)) || getSessionCenterName(item);
+                return (
+                  <option key={getSessionId(item)} value={getSessionId(item)}>
+                    {realName} (Site #{sid}) | Session #{getSessionId(item)}
+                  </option>
+                );
+              })}
             </select>
           </div>
           <div className="field-block">
