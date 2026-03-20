@@ -416,9 +416,10 @@ export default function BookingPage() {
               {filteredSessions.map((item) => {
                 const sid = getSessionSiteId(item);
                 const realName = testCenterMap.get(String(sid)) || getSessionCenterName(item);
+                const seats = item?.available_seats ?? item?.seats_available ?? item?.remaining_seats ?? null;
                 return (
                   <option key={getSessionId(item)} value={getSessionId(item)}>
-                    {realName} (Site #{sid}) | Session #{getSessionId(item)}
+                    {realName} (Site #{sid}) | Session #{getSessionId(item)}{seats !== null && seats !== undefined ? ` | Seats: ${seats}` : ""}
                   </option>
                 );
               })}
@@ -439,6 +440,7 @@ export default function BookingPage() {
           <div><span>Booking Type:</span> <strong>{loadingBalance ? "Checking..." : bookingMode.label}</strong></div>
           <div><span>Reservation Credits:</span> <strong>{loadingBalance ? "-" : bookingMode.reservationCredits}</strong></div>
           <div><span>Free Certificates:</span> <strong>{loadingBalance ? "-" : bookingMode.freeCertificates}</strong></div>
+          <div><span>Available Seats:</span> <strong>{selectedSession ? (selectedSession.available_seats ?? selectedSession.seats_available ?? "-") : "-"}</strong></div>
           <div><span>City:</span> <strong>{siteCity || selectedCity || "-"}</strong></div>
           <div><span>Site ID:</span> <strong>{siteId || "-"}</strong></div>
           <div><span>Hold ID:</span> <strong>{holdId || "-"}</strong></div>
