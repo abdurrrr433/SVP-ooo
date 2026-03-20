@@ -429,8 +429,8 @@ export default function BookingPage() {
             <span>Language *</span>
             <select value={languageCode} onChange={(e) => setLanguageCode(e.target.value)}>
               <option value="">Select language</option>
-              {selectedOccupation?.languageCodes.map((item: any) => (
-                <option key={item.code} value={item.code}>{item.englishName} {item.code ? `(${item.code})` : ""}</option>
+              {selectedOccupation?.languageCodes.map((item: any, idx: number) => (
+                <option key={`${item.code}-${idx}`} value={item.code}>{item.englishName} {item.code ? `(${item.code})` : ""}</option>
               ))}
             </select>
           </div>
