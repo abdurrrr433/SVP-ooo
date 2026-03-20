@@ -440,6 +440,7 @@ export default function BookingPage() {
           <div><span>Booking Type:</span> <strong>{loadingBalance ? "Checking..." : bookingMode.label}</strong></div>
           <div><span>Reservation Credits:</span> <strong>{loadingBalance ? "-" : bookingMode.reservationCredits}</strong></div>
           <div><span>Free Certificates:</span> <strong>{loadingBalance ? "-" : bookingMode.freeCertificates}</strong></div>
+          <div><span>Available Seats:</span> <strong>{selectedSession ? (selectedSession.available_seats ?? selectedSession.seats_available ?? "-") : "-"}</strong></div>
           <div><span>City:</span> <strong>{siteCity || selectedCity || "-"}</strong></div>
           <div><span>Site ID:</span> <strong>{siteId || "-"}</strong></div>
           <div><span>Hold ID:</span> <strong>{holdId || "-"}</strong></div>
