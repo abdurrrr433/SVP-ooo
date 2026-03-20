@@ -154,6 +154,33 @@ export type Database = {
         }
         Relationships: []
       }
+      test_centers: {
+        Row: {
+          address: string | null
+          city: string | null
+          country_code: string | null
+          created_at: string
+          name: string
+          site_id: number
+        }
+        Insert: {
+          address?: string | null
+          city?: string | null
+          country_code?: string | null
+          created_at?: string
+          name: string
+          site_id: number
+        }
+        Update: {
+          address?: string | null
+          city?: string | null
+          country_code?: string | null
+          created_at?: string
+          name?: string
+          site_id?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
