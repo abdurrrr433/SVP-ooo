@@ -173,7 +173,7 @@ const routes: RouteEntry[] = [
   { method: "GET", pattern: /^\/permissions$/, svpPath: "/api/v1/individual_labor_space/permissions" },
   { method: "GET", pattern: /^\/occupations$/, svpPath: "/api/v1/individual_labor_space/occupations" },
   { method: "GET", pattern: /^\/exam-constraints$/, svpPath: "/api/v1/individual_labor_space/exam_constraints" },
-  { method: "GET", pattern: /^\/exam-sessions$/, svpPath: "/api/v1/individual_labor_space/exam_sessions" },
+  // exam-sessions list is handled as a custom route below (to enrich with available_seats)
   { method: "GET", pattern: /^\/exam-session\/([^/]+)$/, svpPath: (m) => `/api/v1/individual_labor_space/exam_sessions/${m[1]}` },
   { method: "GET", pattern: /^\/exam-reservations$/, svpPath: "/api/v1/individual_labor_space/exam_reservations" },
   { method: "GET", pattern: /^\/exam-reservations\/([^/]+)$/, svpPath: (m) => `/api/v1/individual_labor_space/exam_reservations/${m[1]}` },
@@ -227,6 +227,36 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ── Exam sessions (enriched with available_seats) ────────
+    if (req.method === "GET" && path === "/exam-sessions") {
+      // Try multiple endpoint paths, some may include available_seats
+      const endpointPaths = [
+        "/api/v1/legislator_space/exam_sessions",
+        "/api/v1/individual_labor_space/exam_sessions",
+      ];
+      
+      let listData: any = null;
+      let sessions: any[] = [];
+      
+      for (const ep of endpointPaths) {
+        try {
+          listData = await svpFetch(buildPath(ep, query), { method: "GET", token: svpToken });
+          sessions = listData?.exam_sessions || listData?.data?.exam_sessions || (Array.isArray(listData) ? listData : []);
+          // If we got available_seats from this endpoint, use it
+          if (sessions.length > 0 && sessions[0]?.available_seats !== undefined) break;
+        } catch (err: any) {
+          // If last path fails, throw
+          if (ep === endpointPaths[endpointPaths.length - 1]) {
+            if (!listData) throw err;
+          }
+        }
+      }
+
+      // Log what we got for debugging
+      console.log(`exam-sessions: ${sessions.length} sessions, has available_seats: ${sessions[0]?.available_seats !== undefined}`);
+
+      return json(listData);
+    }
 
     // ── User balance (auto-detect SVP user ID) ───────────────
     if (req.method === "GET" && path === "/user-balance") {
