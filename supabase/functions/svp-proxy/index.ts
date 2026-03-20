@@ -229,31 +229,34 @@ Deno.serve(async (req) => {
 
     // ── Exam sessions (enriched with available_seats) ────────
     if (req.method === "GET" && path === "/exam-sessions") {
-      // Try multiple endpoint paths, some may include available_seats
-      const endpointPaths = [
-        "/api/v1/legislator_space/exam_sessions",
-        "/api/v1/individual_labor_space/exam_sessions",
-      ];
-      
-      let listData: any = null;
-      let sessions: any[] = [];
-      
-      for (const ep of endpointPaths) {
-        try {
-          listData = await svpFetch(buildPath(ep, query), { method: "GET", token: svpToken });
-          sessions = listData?.exam_sessions || listData?.data?.exam_sessions || (Array.isArray(listData) ? listData : []);
-          // If we got available_seats from this endpoint, use it
-          if (sessions.length > 0 && sessions[0]?.available_seats !== undefined) break;
-        } catch (err: any) {
-          // If last path fails, throw
-          if (ep === endpointPaths[endpointPaths.length - 1]) {
-            if (!listData) throw err;
-          }
-        }
-      }
+      const listData: any = await svpFetch(
+        buildPath("/api/v1/individual_labor_space/exam_sessions", query),
+        { method: "GET", token: svpToken }
+      );
+      const sessions: any[] = listData?.exam_sessions || [];
 
-      // Log what we got for debugging
-      console.log(`exam-sessions: ${sessions.length} sessions, has available_seats: ${sessions[0]?.available_seats !== undefined}`);
+      // If list doesn't include available_seats, fetch each detail in parallel
+      if (sessions.length > 0 && sessions[0]?.available_seats === undefined) {
+        const enriched = await Promise.all(
+          sessions.map(async (s: any) => {
+            try {
+              const detail: any = await svpFetch(
+                `/api/v1/individual_labor_space/exam_sessions/${s.id}`,
+                { method: "GET", token: svpToken }
+              );
+              const d = detail?.exam_session || detail;
+              return {
+                ...s,
+                available_seats: d?.available_seats ?? d?.seats_available ?? null,
+                total_seats: d?.total_seats ?? d?.seats_total ?? null,
+              };
+            } catch {
+              return s;
+            }
+          })
+        );
+        listData.exam_sessions = enriched;
+      }
 
       return json(listData);
     }
