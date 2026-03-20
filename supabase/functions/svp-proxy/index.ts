@@ -234,33 +234,36 @@ Deno.serve(async (req) => {
         { method: "GET", token: svpToken }
       );
 
-      // Extract sessions array
       const sessions: any[] = listData?.exam_sessions || listData?.data?.exam_sessions || (Array.isArray(listData) ? listData : []);
 
-      // Fetch individual session details in parallel to get available_seats
-      if (sessions.length > 0 && sessions.length <= 50) {
-        const enriched = await Promise.allSettled(
-          sessions.map(async (s: any) => {
-            const sid = s?.id || s?.session_id;
-            if (!sid) return s;
-            try {
-              const detail: any = await svpFetch(
-                buildPath(`/api/v1/individual_labor_space/exam_sessions/${sid}`, "locale=en"),
-                { method: "GET", token: svpToken }
-              );
-              const sessionDetail = detail?.exam_session || detail?.data?.exam_session || detail;
-              return {
-                ...s,
-                available_seats: sessionDetail?.available_seats ?? s?.available_seats,
-                total_seats: sessionDetail?.total_seats ?? s?.total_seats,
-              };
-            } catch {
-              return s;
+      // Try to get available_seats from the legislator exam_sessions endpoint
+      if (sessions.length > 0) {
+        try {
+          // Fetch from legislator space which includes available_seats
+          const legData: any = await svpFetch(
+            buildPath("/api/v1/legislator_space/exam_sessions", query),
+            { method: "GET", token: svpToken }
+          );
+          const legSessions: any[] = legData?.exam_sessions || legData?.data?.exam_sessions || (Array.isArray(legData) ? legData : []);
+          
+          // Build a lookup map by session ID
+          const seatsMap = new Map<number, number>();
+          legSessions.forEach((s: any) => {
+            if (s?.id && s?.available_seats !== undefined) {
+              seatsMap.set(s.id, s.available_seats);
             }
-          })
-        );
-        const enrichedSessions = enriched.map((r) => r.status === "fulfilled" ? r.value : null).filter(Boolean);
-        return json({ ...listData, exam_sessions: enrichedSessions });
+          });
+
+          if (seatsMap.size > 0) {
+            const enriched = sessions.map((s: any) => ({
+              ...s,
+              available_seats: seatsMap.get(s?.id) ?? s?.available_seats,
+            }));
+            return json({ ...listData, exam_sessions: enriched });
+          }
+        } catch {
+          // legislator endpoint not available, fall through
+        }
       }
 
       return json(listData);
