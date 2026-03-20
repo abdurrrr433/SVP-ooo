@@ -52,7 +52,14 @@ export default function BookingPage() {
     () => selectedCity ? sessions.filter((item) => String(getSessionSiteCity(item)).trim().toLowerCase() === String(selectedCity).trim().toLowerCase()) : sessions,
     [sessions, selectedCity]
   );
-  const centerOptions = useMemo(() => buildCenterOptions(cityFilteredSessions), [cityFilteredSessions]);
+  const centerOptions = useMemo(() => {
+    const options = buildCenterOptions(cityFilteredSessions);
+    // Enrich with real test center names from the map
+    return options.map((opt) => ({
+      ...opt,
+      name: testCenterMap.get(opt.siteId) || opt.name,
+    }));
+  }, [cityFilteredSessions, testCenterMap]);
   const filteredSessions = useMemo(
     () => selectedCenterId ? cityFilteredSessions.filter((item) => getCenterKey(item) === String(selectedCenterId)) : cityFilteredSessions,
     [cityFilteredSessions, selectedCenterId]
