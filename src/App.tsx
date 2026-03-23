@@ -42,6 +42,7 @@ const App = () => (
 
               {/* Access Control System */}
               <Route path="/access/login" element={<AccessLoginPage />} />
+              <Route path="/access/forgot-password" element={<ForgotPasswordPage />} />
               <Route path="/access/dashboard" element={<AccessProtectedRoute><AccessDashboardPage /></AccessProtectedRoute>} />
               <Route path="/access/accounts" element={<AccessProtectedRoute allowedRoles={["ADMIN"]}><AccessAccountsPage /></AccessProtectedRoute>} />
               <Route path="/access/users" element={<AccessProtectedRoute allowedRoles={["ADMIN", "AGENCY"]}><AccessUsersPage /></AccessProtectedRoute>} />
