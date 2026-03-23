@@ -222,6 +222,123 @@ serve(async (req) => {
       });
     }
 
+    // POST /forgot-password
+    if (path === "/forgot-password" && req.method === "POST") {
+      const { email } = await req.json();
+      if (!email) {
+        return new Response(JSON.stringify({ message: "Email is required" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { data: account } = await supabase
+        .from("accounts")
+        .select("id, name, email, status")
+        .eq("email", email.toLowerCase())
+        .single();
+
+      // Always return success to avoid email enumeration
+      if (!account || account.status !== "ACTIVE") {
+        return new Response(JSON.stringify({ message: "If an account with that email exists, a reset code has been generated." }), {
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Generate a 6-digit OTP code
+      const resetCode = String(Math.floor(100000 + Math.random() * 900000));
+      const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 min
+
+      // Invalidate old tokens
+      await supabase
+        .from("password_reset_tokens")
+        .delete()
+        .eq("account_id", account.id);
+
+      await supabase
+        .from("password_reset_tokens")
+        .insert({
+          account_id: account.id,
+          token: resetCode,
+          expires_at: expiresAt,
+        });
+
+      // Return the code in response (in production, send via email)
+      return new Response(JSON.stringify({
+        message: "If an account with that email exists, a reset code has been generated.",
+        // Include code for now since no email service is configured
+        resetCode,
+      }), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // POST /reset-password
+    if (path === "/reset-password" && req.method === "POST") {
+      const { email, code, newPassword } = await req.json();
+      if (!email || !code || !newPassword) {
+        return new Response(JSON.stringify({ message: "Email, code, and new password are required" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      if (newPassword.length < 6) {
+        return new Response(JSON.stringify({ message: "Password must be at least 6 characters" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Find the account
+      const { data: account } = await supabase
+        .from("accounts")
+        .select("id")
+        .eq("email", email.toLowerCase())
+        .single();
+
+      if (!account) {
+        return new Response(JSON.stringify({ message: "Invalid reset code" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Verify reset token
+      const { data: tokenRecord } = await supabase
+        .from("password_reset_tokens")
+        .select("*")
+        .eq("account_id", account.id)
+        .eq("token", code)
+        .is("used_at", null)
+        .single();
+
+      if (!tokenRecord) {
+        return new Response(JSON.stringify({ message: "Invalid reset code" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      if (new Date(tokenRecord.expires_at) < new Date()) {
+        return new Response(JSON.stringify({ message: "Reset code has expired" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Update password
+      const hash = bcrypt.hashSync(newPassword);
+      await supabase
+        .from("accounts")
+        .update({ password: hash })
+        .eq("id", account.id);
+
+      // Mark token as used
+      await supabase
+        .from("password_reset_tokens")
+        .update({ used_at: new Date().toISOString() })
+        .eq("id", tokenRecord.id);
+
+      return new Response(JSON.stringify({ message: "Password reset successfully" }), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     return new Response(JSON.stringify({ message: "Not found" }), {
       status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

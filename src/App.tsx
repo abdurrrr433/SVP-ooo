@@ -13,6 +13,7 @@ import DashboardPage from "@/pages/DashboardPage";
 import BookingPage from "@/pages/exam/BookingPage";
 import ReservationsPage from "@/pages/exam/ReservationsPage";
 import AccessLoginPage from "@/pages/access/AccessLoginPage";
+import ForgotPasswordPage from "@/pages/access/ForgotPasswordPage";
 import AccessDashboardPage from "@/pages/access/AccessDashboardPage";
 import AccessAccountsPage from "@/pages/access/AccessAccountsPage";
 import AccessUsersPage from "@/pages/access/AccessUsersPage";
@@ -41,6 +42,7 @@ const App = () => (
 
               {/* Access Control System */}
               <Route path="/access/login" element={<AccessLoginPage />} />
+              <Route path="/access/forgot-password" element={<ForgotPasswordPage />} />
               <Route path="/access/dashboard" element={<AccessProtectedRoute><AccessDashboardPage /></AccessProtectedRoute>} />
               <Route path="/access/accounts" element={<AccessProtectedRoute allowedRoles={["ADMIN"]}><AccessAccountsPage /></AccessProtectedRoute>} />
               <Route path="/access/users" element={<AccessProtectedRoute allowedRoles={["ADMIN", "AGENCY"]}><AccessUsersPage /></AccessProtectedRoute>} />

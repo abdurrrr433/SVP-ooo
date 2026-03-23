@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useAccessAuth } from "@/contexts/AccessAuthContext";
 
 export default function AccessLoginPage() {
@@ -64,6 +64,11 @@ export default function AccessLoginPage() {
             {loading ? "Signing in..." : "Sign in"}
           </button>
           <p className="auth-message">{msg}</p>
+          <div className="mt-2 text-center">
+            <Link to="/access/forgot-password" className="auth-link">
+              Forgot password?
+            </Link>
+          </div>
         </form>
       </div>
     </div>
