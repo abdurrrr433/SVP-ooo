@@ -163,7 +163,14 @@ serve(async (req) => {
         });
       }
 
-      const payload = await verifyToken(token);
+      let payload;
+      try {
+        payload = await verifyToken(token);
+      } catch {
+        return new Response(JSON.stringify({ message: "Token expired or invalid" }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
       const { data: account } = await supabase
         .from("accounts")
         .select("*")
