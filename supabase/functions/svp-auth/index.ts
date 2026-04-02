@@ -80,7 +80,7 @@ async function getEncKey(): Promise<Uint8Array> {
 }
 
 async function encryptString(plain: string): Promise<string> {
-  const key = await crypto.subtle.importKey("raw", getEncKey(), "AES-GCM", false, ["encrypt"]);
+  const key = await crypto.subtle.importKey("raw", await getEncKey(), "AES-GCM", false, ["encrypt"]);
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const encoded = new TextEncoder().encode(plain);
   const encrypted = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, encoded));
