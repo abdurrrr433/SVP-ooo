@@ -95,7 +95,7 @@ async function decryptString(b64: string): Promise<string> {
   const buf = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
   const iv = buf.slice(0, 12);
   const data = buf.slice(12);
-  const key = await crypto.subtle.importKey("raw", getEncKey(), "AES-GCM", false, ["decrypt"]);
+  const key = await crypto.subtle.importKey("raw", await getEncKey(), "AES-GCM", false, ["decrypt"]);
   const decrypted = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, data);
   return new TextDecoder().decode(decrypted);
 }
