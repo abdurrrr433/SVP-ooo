@@ -80,24 +80,26 @@ async function svpFetchRaw(
 }
 
 // ── Crypto ──────────────────────────────────────────────────────────
-function getEncKey(): Uint8Array {
+async function getEncKey(): Promise<Uint8Array> {
   const raw = Deno.env.get("SESSION_ENC_KEY_BASE64") || "";
   if (raw) {
     try {
       const decoded = Uint8Array.from(atob(raw), (c) => c.charCodeAt(0));
       if (decoded.length === 32) return decoded;
     } catch { /* fall through */ }
-    return new Uint8Array(crypto.subtle.digestSync("SHA-256", new TextEncoder().encode(raw)));
+    const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(raw));
+    return new Uint8Array(hash);
   }
   const fallback = Deno.env.get("JWT_REFRESH_SECRET") || "dev";
-  return new Uint8Array(crypto.subtle.digestSync("SHA-256", new TextEncoder().encode(fallback)));
+  const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(fallback));
+  return new Uint8Array(hash);
 }
 
 async function decryptString(b64: string): Promise<string> {
   const buf = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
   const iv = buf.slice(0, 12);
   const data = buf.slice(12);
-  const key = await crypto.subtle.importKey("raw", getEncKey(), "AES-GCM", false, ["decrypt"]);
+  const key = await crypto.subtle.importKey("raw", await getEncKey(), "AES-GCM", false, ["decrypt"]);
   const decrypted = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, data);
   return new TextDecoder().decode(decrypted);
 }
