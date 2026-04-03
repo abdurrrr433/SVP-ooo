@@ -13,6 +13,7 @@ export default function OtpPage() {
   const [otpMethod, setOtpMethod] = useState("email");
   const [otpAttempt, setOtpAttempt] = useState("");
   const [msg, setMsg] = useState("");
+  const [resending, setResending] = useState(false);
 
   useEffect(() => {
     const queryLogin = searchParams.get("login");
@@ -26,6 +27,15 @@ export default function OtpPage() {
     setOtpMethod(queryOtpMethod || storedOtpMethod);
   }, [searchParams]);
 
+  function getErrorMessage(err: any) {
+    const otpInvalidMessage = err?.data?.details?.errors?.otp_attempt_invalid?.en;
+    if (otpInvalidMessage) {
+      return `${otpInvalidMessage} Please resend OTP and use the newest code only.`;
+    }
+
+    return err?.data?.message || err?.message || "OTP verification failed";
+  }
+
   async function verify(e: React.FormEvent) {
     e.preventDefault();
     setMsg("Verifying OTP...");
@@ -38,7 +48,30 @@ export default function OtpPage() {
       setMsg("Login successful. Redirecting to dashboard...");
       navigate("/dashboard");
     } catch (err: any) {
-      setMsg(JSON.stringify(err.data || err.message));
+      setMsg(getErrorMessage(err));
+    }
+  }
+
+  async function resendOtp() {
+    if (!login || !password) {
+      setMsg("Session expired. Please sign in again to request a new OTP.");
+      return;
+    }
+
+    setResending(true);
+    setMsg("Sending a new OTP...");
+
+    try {
+      await apiAuth("/login", { login, password, otp_method: otpMethod });
+      sessionStorage.setItem("tmp_login", login);
+      sessionStorage.setItem("tmp_password", password);
+      sessionStorage.setItem("tmp_otpMethod", otpMethod);
+      setOtpAttempt("");
+      setMsg(`A new OTP was sent via ${(otpMethod || "email").toUpperCase()}. Use the latest code only.`);
+    } catch (err: any) {
+      setMsg(err?.data?.message || err?.message || "Failed to resend OTP");
+    } finally {
+      setResending(false);
     }
   }
 
@@ -66,6 +99,15 @@ export default function OtpPage() {
             required
           />
           <button type="submit" className="auth-submit">Verify OTP</button>
+          <button
+            type="button"
+            className="auth-submit"
+            onClick={resendOtp}
+            disabled={resending || !login || !password}
+            style={{ marginTop: "0.75rem" }}
+          >
+            {resending ? "Resending OTP..." : "Resend OTP"}
+          </button>
           <p className="auth-message">{msg}</p>
         </form>
       </div>
