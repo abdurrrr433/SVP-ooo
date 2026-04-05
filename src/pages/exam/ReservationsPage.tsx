@@ -27,17 +27,18 @@ function value(item: any, keys: string[]) {
 }
 
 function getReservationId(item: any) { return value(item, ["id", "reservation_id", "exam_reservation_id"]); }
-function getOccupationId(item: any) { return value(item, ["occupation_id"]) || item?.occupation?.id || ""; }
-function getMethodology(item: any) { return value(item, ["methodology_type", "methodology"]) || "in_person"; }
-function getStatus(item: any) { return value(item, ["reservation_status", "status", "payment_status"]) || "Unknown"; }
+function getOccupationId(item: any) { return item?.occupation?.id || value(item, ["occupation_id"]) || ""; }
+function getMethodology(item: any) { return value(item, ["methodology", "methodology_type"]) || "in_person"; }
+function getStatus(item: any) { return value(item, ["reservation_status", "status", "cbt_exam_status", "payment_status"]) || "Unknown"; }
 function getDate(item: any) {
-  return value(item, ["exam_date", "scheduled_at", "date", "examDay", "test_date", "start_at_in_browser_time_zone", "start_at"]) || item?.exam_session?.test_date || item?.exam_session?.start_at_in_browser_time_zone || "";
+  return item?.exam_session?.test_date || item?.exam_session?.start_at_in_browser_time_zone || value(item, ["exam_date", "scheduled_at", "date", "examDay", "test_date", "start_at_in_browser_time_zone", "start_at"]) || "";
 }
-function getCenterName(item: any) { return value(item, ["test_center_name", "name", "site_city", "city"]) || item?.exam_session?.test_center?.name || `Site #${getSiteId(item) || "-"}`; }
-function getSiteId(item: any) { return value(item, ["site_id"]) || item?.prometric_data?.site_id || item?.exam_session?.test_center?.site_id || ""; }
+function getCenterName(item: any) { return item?.exam_session?.test_center?.name || value(item, ["test_center_name", "name", "site_city", "city"]) || `Site #${getSiteId(item) || "-"}`; }
+function getSiteId(item: any) { return item?.exam_session?.test_center?.site_id || value(item, ["site_id"]) || ""; }
 function getLanguageCode(item: any) { return value(item, ["language_code", "prometric_code", "code"]) || "-"; }
 function getSessionId(item: any) { return value(item, ["exam_session_id"]) || item?.exam_session?.id || ""; }
 function canReschedule(item: any) { return Boolean(item?.can_be_rescheduled); }
+function canCancel(item: any) { return Boolean(item?.can_be_canceled); }
 function getRescheduleReason(item: any) { return item?.cancellation_reason || item?.violation_reason || item?.reservation_status || ""; }
 
 export default function ReservationsPage() {
@@ -45,11 +46,13 @@ export default function ReservationsPage() {
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingId, setLoadingId] = useState("");
+  const [cancellingId, setCancellingId] = useState("");
   const [downloadingId, setDownloadingId] = useState("");
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   async function loadReservations() {
-    setLoading(true); setError("");
+    setLoading(true); setError(""); setSuccess("");
     try {
       const data = await api("/exam-reservations?locale=en");
       const reservations = pickArray(data);
@@ -66,20 +69,42 @@ export default function ReservationsPage() {
     const occupationId = getOccupationId(item);
     if (!reservationId || !occupationId) { setError("Missing reservation ID or occupation ID"); return; }
     setLoadingId(String(reservationId)); setError("");
+
     try {
-      await api("/reservation-credits/use", {
-        method: "POST",
-        body: { methodology_type: getMethodology(item), reservation_id: Number(reservationId), occupation_id: Number(occupationId) },
-      });
+      // Try reservation-credits/use first, but don't block reschedule if it fails
+      try {
+        await api("/reservation-credits/use", {
+          method: "POST",
+          body: { methodology_type: getMethodology(item), reservation_id: Number(reservationId), occupation_id: Number(occupationId) },
+        });
+      } catch (creditErr: any) {
+        console.warn("reservation-credits/use failed (continuing):", creditErr?.message);
+        // Continue to reschedule even if credits call fails
+      }
+
       const query = new URLSearchParams({
         reschedule: "1", reservationId: String(reservationId), occupationId: String(occupationId),
         methodology: String(getMethodology(item)), examDate: String(getDate(item) || ""),
-        siteId: String(getSiteId(item) || ""), siteCity: String(value(item, ["site_city", "city"]) || ""),
+        siteId: String(getSiteId(item) || ""), siteCity: String(value(item, ["site_city", "city"]) || item?.exam_session?.test_center?.city || ""),
         languageCode: String(getLanguageCode(item) || ""),
       });
       navigate(`/exam/booking?${query.toString()}`);
     } catch (err: any) { setError(err?.message || "Failed to start reschedule"); }
     finally { setLoadingId(""); }
+  }
+
+  async function cancelReservation(item: any) {
+    const reservationId = getReservationId(item);
+    if (!reservationId) { setError("Missing reservation ID"); return; }
+    if (!window.confirm(`Are you sure you want to cancel reservation #${reservationId}? This action cannot be undone.`)) return;
+
+    setCancellingId(String(reservationId)); setError(""); setSuccess("");
+    try {
+      await api(`/exam-reservations/${encodeURIComponent(reservationId)}`, { method: "DELETE" });
+      setSuccess(`Reservation #${reservationId} cancelled successfully.`);
+      await loadReservations();
+    } catch (err: any) { setError(err?.message || "Failed to cancel reservation"); }
+    finally { setCancellingId(""); }
   }
 
   async function downloadTicket(item: any) {
@@ -133,6 +158,7 @@ export default function ReservationsPage() {
           </div>
         </div>
 
+        {success ? <div className="status-card status-success" style={{ background: "#d4edda", color: "#155724", border: "1px solid #c3e6cb" }}>{success}</div> : null}
         {error ? <div className="status-card status-error">{error}</div> : null}
         {loading ? <div className="empty-card">Loading booked reservations...</div> : null}
         {!loading && !items.length ? (
@@ -152,7 +178,7 @@ export default function ReservationsPage() {
                 <div className="detail-list">
                   <div><span>Test center</span><strong>{getCenterName(item)}</strong></div>
                   <div><span>Exam date</span><strong>{getDate(item) || "-"}</strong></div>
-                  <div><span>Occupation ID</span><strong>{getOccupationId(item) || "-"}</strong></div>
+                  <div><span>Occupation</span><strong>{item?.occupation?.english_name || item?.occupation?.name || getOccupationId(item) || "-"}</strong></div>
                   <div><span>Session ID</span><strong>{getSessionId(item) || "-"}</strong></div>
                   <div><span>Language</span><strong>{getLanguageCode(item)}</strong></div>
                   <div><span>Site ID</span><strong>{getSiteId(item) || "-"}</strong></div>
@@ -161,6 +187,15 @@ export default function ReservationsPage() {
                 <button className="primary-btn" type="button" onClick={() => startReschedule(item)}
                   disabled={loadingId === String(rid) || !canReschedule(item)}>
                   {loadingId === String(rid) ? "Opening..." : canReschedule(item) ? "Reschedule" : "Reschedule unavailable"}
+                </button>
+                <button
+                  className="secondary-btn"
+                  type="button"
+                  onClick={() => cancelReservation(item)}
+                  disabled={cancellingId === String(rid) || !canCancel(item)}
+                  style={{ marginTop: "10px", width: "100%", ...(canCancel(item) ? { background: "#dc3545", color: "#fff", border: "1px solid #dc3545" } : {}) }}
+                >
+                  {cancellingId === String(rid) ? "Cancelling..." : canCancel(item) ? "Cancel Reservation" : "Cancel unavailable"}
                 </button>
                 <button className="secondary-btn" type="button" onClick={() => downloadTicket(item)}
                   disabled={downloadingId === String(rid)} style={{ marginTop: "10px", width: "100%" }}>
