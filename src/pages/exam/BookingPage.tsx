@@ -260,6 +260,23 @@ export default function BookingPage() {
     if (!effectiveLanguageCode) { setError("language_code is required. Select a language before booking."); return; }
     setBooking(true); setError(""); setStatus("");
     try {
+      // If rescheduling, cancel the old reservation first
+      const oldReservationId = searchParams.get("reservationId");
+      if (searchParams.get("reschedule") === "1" && oldReservationId) {
+        setStatus("Cancelling old reservation before rebooking...");
+        try {
+          await api(`/exam-reservations/${encodeURIComponent(oldReservationId)}`, { method: "DELETE" });
+        } catch (cancelErr: any) {
+          console.warn("Failed to cancel old reservation (continuing):", cancelErr?.message);
+          // If it's already cancelled or not found, continue with new booking
+          if (cancelErr?.status !== 404 && cancelErr?.status !== 422) {
+            setError(`Failed to cancel old reservation #${oldReservationId}: ${cancelErr?.message}`);
+            setBooking(false);
+            return;
+          }
+        }
+      }
+
       const data = await api("/exam-reservations", {
         method: "POST", body: {
           exam_session_id: Number(sessionId), occupation_id: Number(selectedOccupationId),
