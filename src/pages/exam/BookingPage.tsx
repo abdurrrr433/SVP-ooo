@@ -259,6 +259,22 @@ export default function BookingPage() {
     const sessionCodes = getPrometricCodes(selectedSession);
     const effectiveLanguageCode = languageCode || selectedOccupation?.languageCodes?.[0]?.code || sessionCodes?.[0]?.code || sessionCodes?.[0]?.language_code || "";
     if (!effectiveLanguageCode) { setError("language_code is required. Select a language before booking."); return; }
+
+    // For reschedule, ensure we use the prometric code (e.g. "LOABB") not ISO code (e.g. "bn")
+    let rescheduleLanguageCode = effectiveLanguageCode;
+    if (searchParams.get("reschedule") === "1" && selectedOccupation?.languageCodes?.length) {
+      // If the current code looks like an ISO code (2-3 chars), find the matching prometric code
+      if (effectiveLanguageCode.length <= 3) {
+        const match = selectedOccupation.languageCodes.find(
+          (lc: any) => lc.code?.toLowerCase() !== effectiveLanguageCode.toLowerCase() && effectiveLanguageCode.length <= 3
+        );
+        // Actually search by checking if any prometric code's raw data has this language_code
+        const allCodes = selectedOccupation?.raw?.category?.prometric_codes || selectedOccupation?.raw?.prometric_codes || [];
+        const prometricMatch = allCodes.find((c: any) => c?.language_code === effectiveLanguageCode);
+        if (prometricMatch?.code) rescheduleLanguageCode = prometricMatch.code;
+      }
+    }
+
     setBooking(true); setError(""); setStatus("");
     try {
       const oldReservationId = searchParams.get("reservationId");
@@ -272,7 +288,7 @@ export default function BookingPage() {
           body: {
             id: Number(oldReservationId),
             exam_session_id: Number(sessionId),
-            language_code: effectiveLanguageCode,
+            language_code: rescheduleLanguageCode,
           },
         });
         const nextReservationId = extractId(data, ["id", "reservation_id", "exam_reservation_id"]) || oldReservationId;
