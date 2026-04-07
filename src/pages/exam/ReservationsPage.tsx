@@ -82,11 +82,18 @@ export default function ReservationsPage() {
         // Continue to reschedule even if credits call fails
       }
 
+      // Find the prometric code matching the reservation's language_code
+      const isoLang = String(getLanguageCode(item) || "");
+      const catId = String(item?.category?.id || item?.exam_session?.category?.id || "");
+      const prometricCodes = item?.category?.prometric_codes || item?.exam_session?.category?.prometric_codes || [];
+      const matchedPrometricCode = prometricCodes.find((c: any) => c?.language_code === isoLang)?.code || isoLang;
+
       const query = new URLSearchParams({
         reschedule: "1", reservationId: String(reservationId), occupationId: String(occupationId),
         methodology: String(getMethodology(item)), examDate: String(getDate(item) || ""),
         siteId: String(getSiteId(item) || ""), siteCity: String(value(item, ["site_city", "city"]) || item?.exam_session?.test_center?.city || ""),
-        languageCode: String(getLanguageCode(item) || ""),
+        languageCode: String(matchedPrometricCode || isoLang || ""),
+        categoryId: catId,
       });
       navigate(`/exam/booking?${query.toString()}`);
     } catch (err: any) { setError(err?.message || "Failed to start reschedule"); }

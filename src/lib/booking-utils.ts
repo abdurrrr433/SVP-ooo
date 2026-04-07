@@ -194,7 +194,7 @@ export function buildCalendarDays(activeMonth: string, availableDates: string[])
   const month = md.getMonth();
   const firstDay = new Date(year, month, 1);
   const lastDay = new Date(year, month + 1, 0);
-  const leading = (firstDay.getDay() + 6) % 7;
+  const leading = firstDay.getDay();
   const total = lastDay.getDate();
   const set = new Set(availableDates);
   const items: CalendarDay[] = [];
