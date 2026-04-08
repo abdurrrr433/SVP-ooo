@@ -728,11 +728,12 @@
 }
 .calendar-grid {
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 6px;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
 }
 .calendar-cell {
-  min-height: 38px;
+  min-height: 36px;
+  min-width: 0;
   border-radius: 10px;
   border: 1px solid transparent;
   background: transparent;
