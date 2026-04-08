@@ -23,6 +23,13 @@ export default function AccessAccountsPage() {
   const [filterRole, setFilterRole] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
 
+  // Password change modal
+  const [pwModalId, setPwModalId] = useState<string | null>(null);
+  const [pwModalName, setPwModalName] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [pwLoading, setPwLoading] = useState(false);
+  const [pwMsg, setPwMsg] = useState("");
+
   async function fetchAccounts() {
     setLoading(true);
     try {
@@ -44,13 +51,31 @@ export default function AccessAccountsPage() {
     fetchAccounts();
   }, [filterRole, filterStatus]);
 
-  async function changeStatus(id: string, status: string) {
+  async function toggleStatus(acc: Account) {
+    const newStatus = acc.status === "ACTIVE" ? "BLOCKED" : "ACTIVE";
     try {
-      await accessAdminApi(`/accounts/${id}/status`, { method: "PATCH", body: { status } });
-      setMsg(`Status updated to ${status}`);
+      await accessAdminApi(`/accounts/${acc.id}/status`, { method: "PATCH", body: { status: newStatus } });
+      setMsg(`${acc.name} is now ${newStatus}`);
       fetchAccounts();
     } catch (err: any) {
       setMsg(err?.message || "Failed to update status");
+    }
+  }
+
+  async function changePassword(e: React.FormEvent) {
+    e.preventDefault();
+    if (!pwModalId) return;
+    setPwLoading(true);
+    setPwMsg("");
+    try {
+      await accessAdminApi(`/accounts/${pwModalId}/password`, { method: "PATCH", body: { password: newPassword } });
+      setPwMsg("Password updated successfully!");
+      setNewPassword("");
+      setTimeout(() => { setPwModalId(null); setPwMsg(""); }, 1500);
+    } catch (err: any) {
+      setPwMsg(err?.message || "Failed to update password");
+    } finally {
+      setPwLoading(false);
     }
   }
 
@@ -59,15 +84,15 @@ export default function AccessAccountsPage() {
     navigate("/access/login");
   }
 
+  const thStyle: React.CSSProperties = { padding: "12px 16px", fontSize: "12px", textTransform: "uppercase", color: "#6d7680", fontWeight: 700 };
+  const tdStyle: React.CSSProperties = { padding: "12px 16px" };
+
   return (
     <div className="dashboard-shell">
       <aside className="sidebar">
         <div className="brand">
           <div className="brand-mark" />
-          <div>
-            <strong>Access</strong>
-            <span>Control Panel</span>
-          </div>
+          <div><strong>Access</strong><span>Control Panel</span></div>
         </div>
         <nav className="sidebar-nav">
           <Link className={`nav-item ${location.pathname === "/access/dashboard" ? "nav-item--active" : ""}`} to="/access/dashboard">Dashboard</Link>
@@ -81,10 +106,7 @@ export default function AccessAccountsPage() {
         <header className="topbar">
           <div className="topbar__user">
             <div className="avatar" />
-            <div>
-              <strong>{user?.name || "Admin"}</strong>
-              <span>{user?.role}</span>
-            </div>
+            <div><strong>{user?.name || "Admin"}</strong><span>{user?.role}</span></div>
             <button className="logout-btn" type="button" onClick={handleLogout}>Logout</button>
           </div>
         </header>
@@ -109,7 +131,7 @@ export default function AccessAccountsPage() {
             </select>
           </div>
 
-          {msg && <div className="error-card" style={{ background: "#e8f5e9", color: "#2e7d32" }}>{msg}</div>}
+          {msg && <div style={{ background: "#e8f5e9", color: "#2e7d32", padding: "10px 16px", borderRadius: "8px", marginBottom: "16px", fontSize: "14px" }}>{msg}</div>}
 
           {loading ? (
             <p>Loading...</p>
@@ -118,19 +140,20 @@ export default function AccessAccountsPage() {
               <table style={{ width: "100%", borderCollapse: "collapse", background: "#fff", borderRadius: "12px", overflow: "hidden" }}>
                 <thead>
                   <tr style={{ background: "#f5f7fa", textAlign: "left" }}>
-                    <th style={{ padding: "12px 16px", fontSize: "12px", textTransform: "uppercase", color: "#6d7680", fontWeight: 700 }}>Name</th>
-                    <th style={{ padding: "12px 16px", fontSize: "12px", textTransform: "uppercase", color: "#6d7680", fontWeight: 700 }}>Email</th>
-                    <th style={{ padding: "12px 16px", fontSize: "12px", textTransform: "uppercase", color: "#6d7680", fontWeight: 700 }}>Role</th>
-                    <th style={{ padding: "12px 16px", fontSize: "12px", textTransform: "uppercase", color: "#6d7680", fontWeight: 700 }}>Status</th>
-                    <th style={{ padding: "12px 16px", fontSize: "12px", textTransform: "uppercase", color: "#6d7680", fontWeight: 700 }}>Actions</th>
+                    <th style={thStyle}>Name</th>
+                    <th style={thStyle}>Email</th>
+                    <th style={thStyle}>Role</th>
+                    <th style={thStyle}>Status</th>
+                    <th style={thStyle}>Active</th>
+                    <th style={thStyle}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {accounts.map((acc) => (
                     <tr key={acc.id} style={{ borderTop: "1px solid #e8ecf0" }}>
-                      <td style={{ padding: "12px 16px" }}>{acc.name}</td>
-                      <td style={{ padding: "12px 16px" }}>{acc.email}</td>
-                      <td style={{ padding: "12px 16px" }}>
+                      <td style={tdStyle}>{acc.name}</td>
+                      <td style={tdStyle}>{acc.email}</td>
+                      <td style={tdStyle}>
                         <span style={{
                           padding: "4px 10px", borderRadius: "12px", fontSize: "12px", fontWeight: 700,
                           background: acc.role === "ADMIN" ? "#ede7f6" : acc.role === "AGENCY" ? "#e3f2fd" : "#f1f8e9",
@@ -139,7 +162,7 @@ export default function AccessAccountsPage() {
                           {acc.role}
                         </span>
                       </td>
-                      <td style={{ padding: "12px 16px" }}>
+                      <td style={tdStyle}>
                         <span style={{
                           padding: "4px 10px", borderRadius: "12px", fontSize: "12px", fontWeight: 700,
                           background: acc.status === "ACTIVE" ? "#e8f5e9" : acc.status === "BLOCKED" ? "#ffebee" : "#fff3e0",
@@ -148,27 +171,35 @@ export default function AccessAccountsPage() {
                           {acc.status}
                         </span>
                       </td>
-                      <td style={{ padding: "12px 16px" }}>
-                        <div style={{ display: "flex", gap: "6px" }}>
-                          {acc.status !== "ACTIVE" && (
-                            <button onClick={() => changeStatus(acc.id, "ACTIVE")}
-                              style={{ padding: "4px 10px", borderRadius: "6px", border: "1px solid #4caf50", background: "#e8f5e9", color: "#2e7d32", cursor: "pointer", fontSize: "12px", fontWeight: 600 }}>
-                              Approve
-                            </button>
-                          )}
-                          {acc.status !== "BLOCKED" && (
-                            <button onClick={() => changeStatus(acc.id, "BLOCKED")}
-                              style={{ padding: "4px 10px", borderRadius: "6px", border: "1px solid #ef5350", background: "#ffebee", color: "#c62828", cursor: "pointer", fontSize: "12px", fontWeight: 600 }}>
-                              Block
-                            </button>
-                          )}
-                          {acc.status !== "PENDING" && (
-                            <button onClick={() => changeStatus(acc.id, "PENDING")}
-                              style={{ padding: "4px 10px", borderRadius: "6px", border: "1px solid #ff9800", background: "#fff3e0", color: "#e65100", cursor: "pointer", fontSize: "12px", fontWeight: 600 }}>
-                              Pending
-                            </button>
-                          )}
-                        </div>
+                      <td style={tdStyle}>
+                        {acc.id !== user?.id && (
+                          <button
+                            onClick={() => toggleStatus(acc)}
+                            style={{
+                              width: "44px", height: "24px", borderRadius: "12px", border: "none", cursor: "pointer",
+                              background: acc.status === "ACTIVE" ? "#4caf50" : "#ccc",
+                              position: "relative", transition: "background 0.2s",
+                            }}
+                          >
+                            <span style={{
+                              display: "block", width: "18px", height: "18px", borderRadius: "50%", background: "#fff",
+                              position: "absolute", top: "3px",
+                              left: acc.status === "ACTIVE" ? "23px" : "3px",
+                              transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,.2)",
+                            }} />
+                          </button>
+                        )}
+                      </td>
+                      <td style={tdStyle}>
+                        <button
+                          onClick={() => { setPwModalId(acc.id); setPwModalName(acc.name); setNewPassword(""); setPwMsg(""); }}
+                          style={{
+                            padding: "4px 10px", borderRadius: "6px", border: "1px solid #1976d2",
+                            background: "#e3f2fd", color: "#1565c0", cursor: "pointer", fontSize: "12px", fontWeight: 600,
+                          }}
+                        >
+                          Change Password
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -179,6 +210,41 @@ export default function AccessAccountsPage() {
           )}
         </section>
       </main>
+
+      {/* Password Change Modal */}
+      {pwModalId && (
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex",
+          alignItems: "center", justifyContent: "center", zIndex: 1000,
+        }} onClick={() => setPwModalId(null)}>
+          <div style={{
+            background: "#fff", borderRadius: "16px", padding: "28px", width: "min(420px,90vw)",
+            boxShadow: "0 8px 32px rgba(0,0,0,.15)",
+          }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ margin: "0 0 4px" }}>Change Password</h3>
+            <p style={{ color: "#666", fontSize: "14px", margin: "0 0 20px" }}>for <strong>{pwModalName}</strong></p>
+            <form onSubmit={changePassword}>
+              <label style={{ display: "block", marginBottom: "6px", fontWeight: 700, fontSize: "14px", color: "#4c5560" }}>New Password</label>
+              <input
+                type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Min 8 characters" required minLength={8}
+                style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", border: "1px solid #ccc", boxSizing: "border-box", marginBottom: "16px" }}
+              />
+              {pwMsg && <p style={{ color: pwMsg.includes("success") ? "#2e7d32" : "#c62828", fontSize: "14px", margin: "0 0 12px" }}>{pwMsg}</p>}
+              <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+                <button type="button" onClick={() => setPwModalId(null)}
+                  style={{ padding: "8px 18px", borderRadius: "8px", border: "1px solid #ccc", background: "#f5f5f5", cursor: "pointer", fontWeight: 600 }}>
+                  Cancel
+                </button>
+                <button type="submit" disabled={pwLoading}
+                  style={{ padding: "8px 18px", borderRadius: "8px", border: "none", background: "#1976d2", color: "#fff", cursor: "pointer", fontWeight: 600 }}>
+                  {pwLoading ? "Updating..." : "Update Password"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

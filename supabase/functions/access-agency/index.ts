@@ -88,6 +88,53 @@ serve(async (req) => {
       });
     }
 
+    // PATCH /users/:id/status
+    const statusMatch = path.match(/^\/users\/([^/]+)\/status$/);
+    if (statusMatch && req.method === "PATCH") {
+      const id = statusMatch[1];
+      const { status } = await req.json();
+      if (!["PENDING", "ACTIVE", "BLOCKED"].includes(status)) {
+        return new Response(JSON.stringify({ message: "Invalid status" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const { data: account } = await supabase.from("accounts").select("*").eq("id", id).eq("agency_id", auth.sub).single();
+      if (!account) {
+        return new Response(JSON.stringify({ message: "User not found" }), {
+          status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const { error } = await supabase.from("accounts").update({ status }).eq("id", id);
+      if (error) throw error;
+      return new Response(JSON.stringify({ message: "Status updated" }), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // PATCH /users/:id/password
+    const pwMatch = path.match(/^\/users\/([^/]+)\/password$/);
+    if (pwMatch && req.method === "PATCH") {
+      const id = pwMatch[1];
+      const { password } = await req.json();
+      if (!password || password.length < 8) {
+        return new Response(JSON.stringify({ message: "Password must be at least 8 characters" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const { data: account } = await supabase.from("accounts").select("id").eq("id", id).eq("agency_id", auth.sub).single();
+      if (!account) {
+        return new Response(JSON.stringify({ message: "User not found" }), {
+          status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const hash = bcrypt.hashSync(password);
+      const { error } = await supabase.from("accounts").update({ password: hash }).eq("id", id);
+      if (error) throw error;
+      return new Response(JSON.stringify({ message: "Password updated successfully" }), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // GET /users
     if (path === "/users" && req.method === "GET") {
       const { data: users, error } = await supabase

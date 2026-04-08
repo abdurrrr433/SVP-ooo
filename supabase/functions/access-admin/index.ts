@@ -158,6 +158,32 @@ serve(async (req) => {
       });
     }
 
+    // PATCH /accounts/:id/password
+    const pwMatch = path.match(/^\/accounts\/([^/]+)\/password$/);
+    if (pwMatch && req.method === "PATCH") {
+      const id = pwMatch[1];
+      const { password } = await req.json();
+      if (!password || password.length < 8) {
+        return new Response(JSON.stringify({ message: "Password must be at least 8 characters" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { data: account } = await supabase.from("accounts").select("id").eq("id", id).single();
+      if (!account) {
+        return new Response(JSON.stringify({ message: "Account not found" }), {
+          status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const hash = bcrypt.hashSync(password);
+      const { error } = await supabase.from("accounts").update({ password: hash }).eq("id", id);
+      if (error) throw error;
+      return new Response(JSON.stringify({ message: "Password updated successfully" }), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // GET /accounts
     if (path === "/accounts" && req.method === "GET") {
       const role = url.searchParams.get("role");
