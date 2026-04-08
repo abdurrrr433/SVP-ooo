@@ -719,8 +719,8 @@
 }
 .calendar-weekdays {
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 6px;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
   color: #9cb0d4;
   font-size: 12px;
   margin-bottom: 6px;
