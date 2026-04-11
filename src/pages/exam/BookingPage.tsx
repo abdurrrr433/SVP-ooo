@@ -406,12 +406,38 @@ export default function BookingPage() {
             <span>Methodology</span>
             <div className="readonly-value">{methodology}</div>
           </div>
-          <div className="field-block">
+          <div className="field-block field-block--occupation" ref={occupationRef}>
             <span>Occupation *</span>
-            <select value={selectedOccupationId} onChange={(e) => setSelectedOccupationId(e.target.value)}>
-              <option value="">{loadingOccupations ? "Loading occupations..." : "Select occupation"}</option>
-              {occupations.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-            </select>
+            <button type="button" className="date-trigger" onClick={() => setIsOccupationOpen((p) => !p)}>
+              <span className={selectedOccupation ? "" : "placeholder-text"}>
+                {selectedOccupation ? selectedOccupation.name : (loadingOccupations ? "Loading..." : "Select occupation")}
+              </span>
+              <span className="date-trigger__icon">▾</span>
+            </button>
+            {isOccupationOpen && (
+              <div className="occupation-dropdown">
+                <input
+                  type="text"
+                  className="occupation-search"
+                  placeholder="Search occupation..."
+                  value={occupationSearch}
+                  onChange={(e) => setOccupationSearch(e.target.value)}
+                  autoFocus
+                />
+                <div className="occupation-list">
+                  {filteredOccupations.length === 0 && (
+                    <div className="occupation-empty">No results found</div>
+                  )}
+                  {filteredOccupations.map((item) => (
+                    <button key={item.id} type="button"
+                      className={`occupation-item${String(item.id) === String(selectedOccupationId) ? " occupation-item--active" : ""}`}
+                      onClick={() => { setSelectedOccupationId(String(item.id)); setIsOccupationOpen(false); setOccupationSearch(""); }}>
+                      {item.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
           <div className="field-block">
             <span>City *</span>
