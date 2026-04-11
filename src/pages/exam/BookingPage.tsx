@@ -51,6 +51,10 @@ export default function BookingPage() {
     () => occupations.find((item) => String(item.id) === String(selectedOccupationId)) || null,
     [occupations, selectedOccupationId]
   );
+  const filteredOccupations = useMemo(
+    () => occupationSearch ? occupations.filter((item) => item.name?.toLowerCase().includes(occupationSearch.toLowerCase())) : occupations,
+    [occupations, occupationSearch]
+  );
   const cityOptions = useMemo(() => buildCityOptions(availableDateEntries), [availableDateEntries]);
   const availableDates = useMemo(() => buildDateOptions(availableDateEntries, selectedCity), [availableDateEntries, selectedCity]);
   const cityFilteredSessions = useMemo(
