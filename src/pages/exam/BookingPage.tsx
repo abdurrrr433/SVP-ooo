@@ -270,6 +270,26 @@ export default function BookingPage() {
     if (codes[0]?.code || codes[0]?.language_code) setLanguageCode(String(codes[0].code || codes[0].language_code));
   }, [selectedSession]);
 
+  // Fetch live available_seats from exam_reservations API for the selected session
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      if (!sessionId) { setLiveAvailableSeats(null); return; }
+      try {
+        const data: any = await api(`/exam-session/${encodeURIComponent(sessionId)}?locale=en`);
+        if (!active) return;
+        const node = data?.data || data?.exam_session || data;
+        const seats = node?.available_seats ?? node?.seats_available ?? node?.remaining_seats;
+        setLiveAvailableSeats(typeof seats === "number" ? seats : seats != null ? Number(seats) : null);
+      } catch {
+        if (!active) return;
+        const fallback = (selectedSession as any)?.available_seats ?? (selectedSession as any)?.seats_available;
+        setLiveAvailableSeats(fallback != null ? Number(fallback) : null);
+      }
+    })();
+    return () => { active = false; };
+  }, [sessionId, selectedSession]);
+
   async function createHold() {
     if (!sessionId) { setError("Select test center / session first"); return; }
     const sessionIds = Array.from(new Set(
