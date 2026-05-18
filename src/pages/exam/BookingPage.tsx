@@ -224,24 +224,55 @@ export default function BookingPage() {
     return () => { active = false; };
   }, [selectedCity, availableDate, categoryId]);
 
-  // Fetch real test center names from database
+  // Resolve real test center names: prefer SVP exam_session detail (test_center.name),
+  // fall back to local DB by site_id. Key map by the same key buildCenterOptions uses.
   useEffect(() => {
     if (!sessions.length) return;
-    const siteIds = Array.from(new Set(
-      sessions.map((s: any) => Number(s?.test_center?.site_id)).filter((n) => Number.isFinite(n) && n > 0)
-    ));
-    const missing = siteIds.filter((sid) => !testCenterMap.has(String(sid)));
-    if (!missing.length) return;
     let active = true;
     (async () => {
-      const { data } = await supabase
-        .from("test_centers")
-        .select("site_id, name")
-        .in("site_id", missing);
-      if (!active || !data?.length) return;
       const newMap = new Map(testCenterMap);
-      data.forEach((row: any) => newMap.set(String(row.site_id), row.name));
-      setTestCenterMap(new Map(newMap));
+      let changed = false;
+
+      // 1. For sessions missing test_center.name, fetch /exam-sessions/:id to get it.
+      const needDetail = sessions.filter((s: any) => {
+        const key = String(getCenterKey(s));
+        if (!key || newMap.has(key)) return false;
+        return !s?.test_center?.name && !s?.test_center_name;
+      });
+      const uniqueIds = Array.from(new Set(needDetail.map((s: any) => String(getSessionId(s))).filter(Boolean)));
+      await Promise.all(uniqueIds.map(async (id) => {
+        try {
+          const detail: any = await api(`/exam-sessions/${encodeURIComponent(id)}?locale=en`);
+          const node = detail?.exam_session || detail?.data?.exam_session || detail?.data || detail;
+          const tc = node?.test_center;
+          const name = tc?.name || tc?.test_center_name || node?.test_center_name;
+          if (!name) return;
+          const sess = sessions.find((s: any) => String(getSessionId(s)) === id);
+          const key = String(getCenterKey({ ...sess, test_center: { ...sess?.test_center, ...tc } }));
+          if (key && !newMap.has(key)) { newMap.set(key, name); changed = true; }
+        } catch {}
+      }));
+
+      // 2. Fallback: query local DB by site_id for any still-missing entries.
+      const dbMissing = Array.from(new Set(
+        sessions
+          .map((s: any) => ({ key: String(getCenterKey(s)), sid: Number(s?.site_id ?? s?.test_center?.site_id) }))
+          .filter((x) => x.key && !newMap.has(x.key) && Number.isFinite(x.sid) && x.sid > 0)
+          .map((x) => x.sid)
+      ));
+      if (dbMissing.length) {
+        const { data } = await supabase.from("test_centers").select("site_id, name").in("site_id", dbMissing);
+        data?.forEach((row: any) => {
+          sessions.forEach((s: any) => {
+            if (Number(s?.site_id ?? s?.test_center?.site_id) === Number(row.site_id)) {
+              const key = String(getCenterKey(s));
+              if (key && !newMap.has(key)) { newMap.set(key, row.name); changed = true; }
+            }
+          });
+        });
+      }
+
+      if (active && changed) setTestCenterMap(newMap);
     })();
     return () => { active = false; };
   }, [sessions]);
