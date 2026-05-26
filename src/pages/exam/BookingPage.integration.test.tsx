@@ -128,14 +128,8 @@ describe("BookingPage integration: resolves test center name from exam_session_i
     );
 
     // The Test Center select must now show the resolved name (not the
-    // synthesized "Rajshahi (#54)" fallback).
-    const centerSelect = (await screen.findByRole("combobox", {
-      name: /test center/i,
-    })) as HTMLSelectElement | null
-      // role lookup by label may not match without proper htmlFor; fall back below
-      ?? null;
-
-    // Fallback: find by enumerating all selects and checking option text.
+    // synthesized "Rajshahi (#54)" fallback). Enumerate selects and find
+    // the one whose options include the real name.
     await waitFor(() => {
       const selects = Array.from(
         document.querySelectorAll("select")
