@@ -33,6 +33,8 @@ const TARGET_NAME = "Rajshahi Technical Training Centre";
 
 function installApiRoutes() {
   apiMock.mockImplementation(async (path: string) => {
+    // eslint-disable-next-line no-console
+    console.log("[api]", path);
     // Occupation list (paged loop, return one page then empty)
     if (path.startsWith("/occupations")) {
       if (path.includes("page=1")) {
