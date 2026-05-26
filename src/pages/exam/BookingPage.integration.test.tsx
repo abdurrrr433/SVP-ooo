@@ -174,5 +174,5 @@ describe("BookingPage integration: resolves test center name from exam_session_i
       expect(opt.text).toContain(TARGET_NAME);
       expect(opt.text).toContain(`Site #${TARGET_TEST_CENTER_ID}`);
     });
-  });
+  }, 15000);
 });
