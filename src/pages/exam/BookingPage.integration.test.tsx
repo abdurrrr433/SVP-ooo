@@ -35,22 +35,13 @@ function installApiRoutes() {
   apiMock.mockImplementation(async (path: string) => {
     // eslint-disable-next-line no-console
     console.log("[api]", path);
-    // Occupation list (paged loop, return one page then empty)
+
+    // Keep occupations fetch pending forever — we drive selection via URL
+    // params (occupationId + categoryId). This avoids the race where the
+    // occupation-selected effect wipes selectedCity right after the
+    // /available-dates response sets it.
     if (path.startsWith("/occupations")) {
-      if (path.includes("page=1")) {
-        return {
-          data: [
-            {
-              id: 7,
-              name: "Welder",
-              category_id: 99,
-              methodology_type: "in_person",
-              prometric_codes: [{ code: "WLD", english_name: "English" }],
-            },
-          ],
-        };
-      }
-      return { data: [] };
+      return new Promise(() => {});
     }
 
     // Balance lookup
