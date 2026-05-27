@@ -233,13 +233,38 @@ export default function BookingPage() {
       const newMap = new Map(testCenterMap);
       let changed = false;
 
-      // 1. For sessions missing test_center.name, fetch /exam-sessions/:id to get it.
+      // 1. For sessions missing test_center.name, fetch /test-centers/:id directly
+      //    (SVP: /api/v1/individual_labor_space/test_centers/:id). Fall back to
+      //    /exam-sessions/:id detail if the test_centers endpoint doesn't return a name.
       const needDetail = sessions.filter((s: any) => {
         const key = String(getCenterKey(s));
         if (!key || newMap.has(key)) return false;
         return !s?.test_center?.name && !s?.test_center_name;
       });
-      const uniqueIds = Array.from(new Set(needDetail.map((s: any) => String(getSessionId(s))).filter(Boolean)));
+
+      // 1a. Resolve by test_center_id via /test-centers/:id
+      const tcIds = Array.from(new Set(
+        needDetail
+          .map((s: any) => String(s?.test_center?.test_center_id ?? s?.test_center?.id ?? s?.test_center_id ?? ""))
+          .filter(Boolean)
+      ));
+      await Promise.all(tcIds.map(async (tcid) => {
+        try {
+          const detail: any = await api(`/test-centers/${encodeURIComponent(tcid)}?locale=en`);
+          const tc = detail?.test_center || detail?.data?.test_center || detail?.data || detail;
+          const name = tc?.name || tc?.test_center_name;
+          if (!name) return;
+          const sess = sessions.find((s: any) =>
+            String(s?.test_center?.test_center_id ?? s?.test_center?.id ?? s?.test_center_id) === tcid
+          );
+          const key = String(getCenterKey({ ...sess, test_center: { ...sess?.test_center, ...tc } }));
+          if (key && !newMap.has(key)) { newMap.set(key, name); changed = true; }
+        } catch {}
+      }));
+
+      // 1b. Remaining: fall back to /exam-sessions/:id detail (embeds test_center).
+      const stillMissing = needDetail.filter((s: any) => !newMap.has(String(getCenterKey(s))));
+      const uniqueIds = Array.from(new Set(stillMissing.map((s: any) => String(getSessionId(s))).filter(Boolean)));
       await Promise.all(uniqueIds.map(async (id) => {
         try {
           const detail: any = await api(`/exam-sessions/${encodeURIComponent(id)}?locale=en`);
@@ -252,6 +277,7 @@ export default function BookingPage() {
           if (key && !newMap.has(key)) { newMap.set(key, name); changed = true; }
         } catch {}
       }));
+
 
       // 2. Fallback: query local DB by site_id for any still-missing entries.
       const dbMissing = Array.from(new Set(
