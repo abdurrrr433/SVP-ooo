@@ -241,8 +241,9 @@ Deno.serve(async (req) => {
       );
       const sessions: any[] = listData?.exam_sessions || [];
 
-      // If list doesn't include available_seats, fetch each detail in parallel
-      if (sessions.length > 0 && sessions[0]?.available_seats === undefined) {
+      // Always enrich sessions with full detail so test_center.name and seat
+      // counts are present even when the list payload omits them.
+      if (sessions.length > 0) {
         const enriched = await Promise.all(
           sessions.map(async (s: any) => {
             try {
@@ -251,10 +252,14 @@ Deno.serve(async (req) => {
                 { method: "GET", token: svpToken }
               );
               const d = detail?.exam_session || detail;
+              const mergedTc = { ...(s?.test_center || {}), ...(d?.test_center || {}) };
               return {
                 ...s,
-                available_seats: d?.available_seats ?? d?.seats_available ?? null,
-                total_seats: d?.total_seats ?? d?.seats_total ?? null,
+                ...d,
+                test_center: mergedTc,
+                test_center_name: d?.test_center?.name || s?.test_center_name || mergedTc?.name,
+                available_seats: d?.available_seats ?? s?.available_seats ?? d?.seats_available ?? null,
+                total_seats: d?.total_seats ?? s?.total_seats ?? d?.seats_total ?? null,
               };
             } catch {
               return s;
