@@ -483,8 +483,23 @@ export default function BookingPage() {
         setStatus(nextReservationId ? `Reservation confirmed: #${nextReservationId}` : "Reservation created");
         if (nextReservationId) await openTicketPdf(String(nextReservationId));
       }
-    } catch (err: any) { setError(err?.message || "Failed to book reservation"); }
-    finally { setBooking(false); }
+    } catch (err: any) {
+      // Extract SVP validation errors for friendlier messages
+      const details = err?.data?.details?.errors || err?.data?.errors;
+      let msg = err?.message || "Failed to book reservation";
+      if (details?.reservation?.reservation_credit) {
+        msg = "No reservation credits available on your SVP account. Please purchase or assign credits before booking.";
+      } else if (details && typeof details === "object") {
+        const flat: string[] = [];
+        const walk = (o: any) => {
+          if (Array.isArray(o)) flat.push(...o.map(String));
+          else if (o && typeof o === "object") Object.values(o).forEach(walk);
+        };
+        walk(details);
+        if (flat.length) msg = flat.join(" • ");
+      }
+      setError(msg);
+    } finally { setBooking(false); }
   }
 
   async function openTicketPdf(nextReservationId: string) {
