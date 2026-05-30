@@ -70,6 +70,13 @@ describe("booking-utils center name resolution", () => {
     expect(getSessionSiteId(sessionFlat)).toBe("23234234");
   });
 
+  it("uses real test_center_id before nested id for sessions missing site_id", () => {
+    expect(getSessionSiteId({
+      id: 1554463,
+      test_center: { id: 1554463, test_center_id: 54, city: "Dhaka" },
+    })).toBe("54");
+  });
+
   it("buildCenterOptions deduplicates across mixed shapes by center key", () => {
     const mixed = [sessionFlat, sessionNestedId, sessionNestedFull, sessionFallback];
     const options = buildCenterOptions(mixed);

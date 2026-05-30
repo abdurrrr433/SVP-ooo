@@ -14,6 +14,8 @@ import {
   getSessionId,
   getSessionSiteCity,
   getCenterKey,
+  getSessionSiteId,
+  getSessionTestCenterId,
 } from "@/lib/booking-utils";
 
 /**
@@ -202,14 +204,7 @@ export default function TestCenterAvailablePage() {
       const tcIds = Array.from(
         new Set(
           needName
-            .map((s: any) =>
-              String(
-                s?.test_center?.test_center_id ??
-                  s?.test_center?.id ??
-                  s?.test_center_id ??
-                  ""
-              )
-            )
+            .map((s: any) => getSessionTestCenterId(s))
             .filter(Boolean)
         )
       );
@@ -222,9 +217,7 @@ export default function TestCenterAvailablePage() {
             const name = tc?.name || tc?.test_center_name;
             if (!name) return;
             sessions.forEach((s: any) => {
-              const sid = String(
-                s?.test_center?.test_center_id ?? s?.test_center?.id ?? s?.test_center_id
-              );
+              const sid = getSessionTestCenterId(s);
               if (sid !== tcid) return;
               const key = String(getCenterKey({ ...s, test_center: { ...s.test_center, ...tc } }));
               if (key && !map.has(key)) {
@@ -244,7 +237,7 @@ export default function TestCenterAvailablePage() {
           sessions
             .map((s: any) => ({
               key: String(getCenterKey(s)),
-              sid: Number(s?.site_id ?? s?.test_center?.site_id),
+              sid: Number(getSessionSiteId(s)),
             }))
             .filter((x) => x.key && !map.has(x.key) && Number.isFinite(x.sid) && x.sid > 0)
             .map((x) => x.sid)
@@ -257,7 +250,7 @@ export default function TestCenterAvailablePage() {
           .in("site_id", dbMissing);
         data?.forEach((row: any) => {
           sessions.forEach((s: any) => {
-            if (Number(s?.site_id ?? s?.test_center?.site_id) === Number(row.site_id)) {
+            if (Number(getSessionSiteId(s)) === Number(row.site_id)) {
               const key = String(getCenterKey(s));
               if (key && !map.has(key)) {
                 map.set(key, row.name);
@@ -438,12 +431,7 @@ export default function TestCenterAvailablePage() {
               <dt className="text-muted-foreground">Test Center</dt>
               <dd className="text-foreground">{selectedCenter?.name}</dd>
               <dt className="text-muted-foreground">Test Center ID</dt>
-              <dd className="text-foreground">
-                {selectedSession?.test_center?.test_center_id ??
-                  selectedSession?.test_center?.id ??
-                  selectedSession?.test_center_id ??
-                  "—"}
-              </dd>
+              <dd className="text-foreground">{getSessionTestCenterId(selectedSession) || getSessionSiteId(selectedSession) || "—"}</dd>
               <dt className="text-muted-foreground">Exam Session ID</dt>
               <dd className="font-semibold text-foreground">{sessionId}</dd>
             </dl>

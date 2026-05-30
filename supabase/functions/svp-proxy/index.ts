@@ -203,6 +203,16 @@ function buildPath(basePath: string, queryString: string): string {
   return suffix ? `${basePath}?${suffix}` : basePath;
 }
 
+function getSessionTestCenterId(session: any): string {
+  const direct = session?.test_center_id || session?.test_center?.test_center_id || "";
+  if (direct) return String(direct);
+
+  const nestedId = session?.test_center?.id || "";
+  if (nestedId && String(nestedId) !== String(session?.id || "")) return String(nestedId);
+
+  return "";
+}
+
 // ── Main handler ────────────────────────────────────────────────────
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -253,11 +263,24 @@ Deno.serve(async (req) => {
               );
               const d = detail?.exam_session || detail;
               const mergedTc = { ...(s?.test_center || {}), ...(d?.test_center || {}) };
+              const tcid = getSessionTestCenterId({ ...s, ...d, test_center: mergedTc });
+              if (tcid && !mergedTc?.name && !mergedTc?.test_center_name) {
+                try {
+                  const centerDetail: any = await svpFetch(
+                    `/api/v1/individual_labor_space/test_centers/${tcid}`,
+                    { method: "GET", token: svpToken }
+                  );
+                  const center = centerDetail?.test_center || centerDetail?.data?.test_center || centerDetail?.data || centerDetail;
+                  Object.assign(mergedTc, center);
+                } catch {
+                  // Keep exam_session data if the direct test_centers endpoint is unavailable.
+                }
+              }
               return {
                 ...s,
                 ...d,
                 test_center: mergedTc,
-                test_center_name: d?.test_center?.name || s?.test_center_name || mergedTc?.name,
+                test_center_name: d?.test_center?.name || s?.test_center_name || mergedTc?.name || mergedTc?.test_center_name,
                 available_seats: d?.available_seats ?? s?.available_seats ?? d?.seats_available ?? null,
                 total_seats: d?.total_seats ?? s?.total_seats ?? d?.seats_total ?? null,
               };

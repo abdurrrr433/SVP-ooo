@@ -65,8 +65,24 @@ export function getSessionId(item: any): string {
   return String(item?.id || item?.session_id || item?.exam_session_id || "");
 }
 
+export function getSessionTestCenterId(item: any): string {
+  const direct = item?.test_center_id || item?.test_center?.test_center_id || "";
+  if (direct) return String(direct);
+
+  const nestedId = item?.test_center?.id || "";
+  if (nestedId && String(nestedId) !== getSessionId(item)) return String(nestedId);
+
+  return "";
+}
+
 export function getSessionSiteId(item: any): string {
-  return String(item?.site_id || item?.test_center?.site_id || item?.test_center?.id || item?.site?.id || "");
+  return String(
+    item?.site_id ||
+    item?.test_center?.site_id ||
+    getSessionTestCenterId(item) ||
+    item?.site?.id ||
+    ""
+  );
 }
 
 export function getSessionSiteCity(item: any): string {

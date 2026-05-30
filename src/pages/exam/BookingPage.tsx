@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   pickArray, normalizeOccupation, normalizeDateValue,
   normalizeAvailableDateEntries, getSessionId, getSessionSiteId, getSessionSiteCity,
-  getSessionCenterName, getCenterKey, getPrometricCodes, extractId,
+  getSessionCenterName, getCenterKey, getPrometricCodes, extractId, getSessionTestCenterId,
   buildCenterOptions, buildCityOptions, buildDateOptions, buildCalendarDays,
   formatDateLabel, detectBookingMode,
 } from "@/lib/booking-utils";
@@ -245,7 +245,7 @@ export default function BookingPage() {
       // 1a. Resolve by test_center_id via /test-centers/:id
       const tcIds = Array.from(new Set(
         needDetail
-          .map((s: any) => String(s?.test_center?.test_center_id ?? s?.test_center?.id ?? s?.test_center_id ?? ""))
+          .map((s: any) => getSessionTestCenterId(s))
           .filter(Boolean)
       ));
       await Promise.all(tcIds.map(async (tcid) => {
@@ -255,7 +255,7 @@ export default function BookingPage() {
           const name = tc?.name || tc?.test_center_name;
           if (!name) return;
           const sess = sessions.find((s: any) =>
-            String(s?.test_center?.test_center_id ?? s?.test_center?.id ?? s?.test_center_id) === tcid
+            getSessionTestCenterId(s) === tcid
           );
           const key = String(getCenterKey({ ...sess, test_center: { ...sess?.test_center, ...tc } }));
           if (key && !newMap.has(key)) { newMap.set(key, name); changed = true; }
@@ -282,7 +282,7 @@ export default function BookingPage() {
       // 2. Fallback: query local DB by site_id for any still-missing entries.
       const dbMissing = Array.from(new Set(
         sessions
-          .map((s: any) => ({ key: String(getCenterKey(s)), sid: Number(s?.site_id ?? s?.test_center?.site_id) }))
+          .map((s: any) => ({ key: String(getCenterKey(s)), sid: Number(getSessionSiteId(s)) }))
           .filter((x) => x.key && !newMap.has(x.key) && Number.isFinite(x.sid) && x.sid > 0)
           .map((x) => x.sid)
       ));
@@ -290,7 +290,7 @@ export default function BookingPage() {
         const { data } = await supabase.from("test_centers").select("site_id, name").in("site_id", dbMissing);
         data?.forEach((row: any) => {
           sessions.forEach((s: any) => {
-            if (Number(s?.site_id ?? s?.test_center?.site_id) === Number(row.site_id)) {
+            if (Number(getSessionSiteId(s)) === Number(row.site_id)) {
               const key = String(getCenterKey(s));
               if (key && !newMap.has(key)) { newMap.set(key, row.name); changed = true; }
             }
