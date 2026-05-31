@@ -9,6 +9,7 @@ import {
   buildCenterOptions, buildCityOptions, buildDateOptions, buildCalendarDays,
   formatDateLabel, detectBookingMode,
 } from "@/lib/booking-utils";
+import { getRealTestCenterNameById } from "@/lib/real-test-centers";
 
 
 
@@ -278,6 +279,13 @@ export default function BookingPage() {
         } catch {}
       }));
 
+      // 1c. Known Bangladesh SVP test centers (static direct API fallback).
+      stillMissing.forEach((s: any) => {
+        const key = String(getCenterKey(s));
+        if (!key || newMap.has(key)) return;
+        const name = getRealTestCenterNameById(getSessionTestCenterId(s)) || getRealTestCenterNameById(getSessionSiteId(s));
+        if (name) { newMap.set(key, name); changed = true; }
+      });
 
       // 2. Fallback: query local DB by site_id for any still-missing entries.
       const dbMissing = Array.from(new Set(

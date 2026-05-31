@@ -17,6 +17,7 @@ import {
   getSessionSiteId,
   getSessionTestCenterId,
 } from "@/lib/booking-utils";
+import { getRealTestCenterNameById } from "@/lib/real-test-centers";
 
 /**
  * TEST CENTER AVAILABLE NEW
@@ -230,6 +231,16 @@ export default function TestCenterAvailablePage() {
           }
         })
       );
+
+      needName.forEach((s: any) => {
+        const key = String(getCenterKey(s));
+        if (!key || map.has(key)) return;
+        const name = getRealTestCenterNameById(getSessionTestCenterId(s)) || getRealTestCenterNameById(getSessionSiteId(s));
+        if (name) {
+          map.set(key, name);
+          changed = true;
+        }
+      });
 
       // Local DB fallback
       const dbMissing = Array.from(
