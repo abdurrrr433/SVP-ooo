@@ -13,6 +13,7 @@ import DashboardPage from "@/pages/DashboardPage";
 import BookingPage from "@/pages/exam/BookingPage";
 import ReservationsPage from "@/pages/exam/ReservationsPage";
 import TestCenterAvailablePage from "@/pages/exam/TestCenterAvailablePage";
+import TestCenterBrowsePage from "@/pages/exam/TestCenterBrowsePage";
 import AccessLoginPage from "@/pages/access/AccessLoginPage";
 import ForgotPasswordPage from "@/pages/access/ForgotPasswordPage";
 import AccessDashboardPage from "@/pages/access/AccessDashboardPage";
@@ -40,6 +41,7 @@ const App = () => (
               <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
               <Route path="/exam/booking" element={<ProtectedRoute><BookingPage /></ProtectedRoute>} />
               <Route path="/exam/test-center-available" element={<ProtectedRoute><TestCenterAvailablePage /></ProtectedRoute>} />
+              <Route path="/exam/test-center-browse" element={<ProtectedRoute><TestCenterBrowsePage /></ProtectedRoute>} />
               <Route path="/exam/reservations" element={<ProtectedRoute><ReservationsPage /></ProtectedRoute>} />
 
               {/* Access Control System */}
