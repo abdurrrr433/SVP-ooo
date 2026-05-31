@@ -94,10 +94,18 @@ export function getSessionSiteCity(item: any): string {
 }
 
 export function getSessionCenterName(item: any): string {
-  return String(
-    item?.test_center_name || item?.test_center?.name || item?.test_center?.test_center_name ||
-    `${getSessionSiteCity(item) || "Center"}${getSessionSiteId(item) ? ` (#${getSessionSiteId(item)})` : ""}`
-  );
+  const name = item?.test_center_name || item?.test_center?.name || item?.test_center?.test_center_name;
+  if (name) return String(name);
+
+  const city = getSessionSiteCity(item) || "Center";
+  const displayId = getSessionCenterDisplayId(item);
+  const displayType = getSessionCenterDisplayIdType(item);
+  if (displayId) {
+    const label = displayType === "site" ? "Site" : "Center";
+    return `${city} (${label} #${displayId})`;
+  }
+
+  return city;
 }
 
 export function getCenterKey(item: any): string {
@@ -150,14 +158,46 @@ export function buildDateOptions(entries: DateEntry[], city: string): string[] {
   ).sort();
 }
 
-export interface CenterOption { siteId: string; name: string; city: string; }
+export type CenterIdType = "site" | "test_center" | "none";
+
+export interface CenterOption {
+  key: string;
+  siteId: string;
+  displayId: string;
+  displayIdType: CenterIdType;
+  name: string;
+  city: string;
+}
+
+export function getSessionCenterDisplayId(item: any): string {
+  const siteId = item?.site_id || item?.test_center?.site_id;
+  if (siteId) return String(siteId);
+  const tcId = item?.test_center_id || item?.test_center?.test_center_id || item?.test_center?.id;
+  if (tcId) return String(tcId);
+  return "";
+}
+
+export function getSessionCenterDisplayIdType(item: any): CenterIdType {
+  if (item?.site_id || item?.test_center?.site_id) return "site";
+  if (item?.test_center_id || item?.test_center?.test_center_id || item?.test_center?.id) return "test_center";
+  return "none";
+}
 
 export function buildCenterOptions(items: any[]): CenterOption[] {
   const map = new Map<string, CenterOption>();
   items.forEach((item) => {
-    const sid = getCenterKey(item);
-    if (!sid || map.has(sid)) return;
-    map.set(sid, { siteId: sid, name: getSessionCenterName(item), city: getSessionSiteCity(item) });
+    const key = getCenterKey(item);
+    if (!key || map.has(key)) return;
+    const displayId = getSessionCenterDisplayId(item);
+    const displayIdType = getSessionCenterDisplayIdType(item);
+    map.set(key, {
+      key,
+      siteId: key,
+      displayId,
+      displayIdType,
+      name: getSessionCenterName(item),
+      city: getSessionSiteCity(item),
+    });
   });
   return Array.from(map.values());
 }

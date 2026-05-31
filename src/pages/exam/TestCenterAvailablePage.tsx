@@ -13,6 +13,8 @@ import {
   buildCenterOptions,
   getSessionId,
   getSessionSiteCity,
+  getSessionCenterDisplayId,
+  getSessionCenterDisplayIdType,
   getCenterKey,
   getSessionSiteId,
   getSessionTestCenterId,
@@ -392,11 +394,14 @@ export default function TestCenterAvailablePage() {
               disabled={!date || loadingSessions || !centerOptions.length}
             >
               <option value="">Select test center</option>
-              {centerOptions.map((o) => (
-                <option key={o.siteId} value={o.siteId}>
-                  {o.name} {o.city ? `— ${o.city}` : ""}
-                </option>
-              ))}
+              {centerOptions.map((o) => {
+                const idLabel = o.displayId ? ` (${o.displayIdType === "site" ? "Site" : "Center"} #${o.displayId})` : "";
+                return (
+                  <option key={o.siteId} value={o.siteId}>
+                    {o.name}{idLabel} {o.city ? `— ${o.city}` : ""}
+                  </option>
+                );
+              })}
             </select>
           </div>
 
@@ -412,6 +417,9 @@ export default function TestCenterAvailablePage() {
               <option value="">Select session</option>
               {sessionOptions.map((s) => {
                 const id = getSessionId(s);
+                const displayId = getSessionCenterDisplayId(s);
+                const displayIdType = getSessionCenterDisplayIdType(s);
+                const idLabel = displayId ? ` (${displayIdType === "site" ? "Site" : "Center"} #${displayId})` : "";
                 const name =
                   centerNameMap.get(String(getCenterKey(s))) ||
                   s?.test_center?.name ||
@@ -420,7 +428,7 @@ export default function TestCenterAvailablePage() {
                 const time = s?.test_time || s?.start_at_time || "";
                 return (
                   <option key={id} value={id}>
-                    #{id} — {name} {time && `• ${time}`}
+                    #{id} — {name}{idLabel} {time && `• ${time}`}
                   </option>
                 );
               })}

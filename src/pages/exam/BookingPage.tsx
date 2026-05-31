@@ -5,9 +5,10 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   pickArray, normalizeOccupation, normalizeDateValue,
   normalizeAvailableDateEntries, getSessionId, getSessionSiteId, getSessionSiteCity,
-  getSessionCenterName, getCenterKey, getPrometricCodes, extractId, getSessionTestCenterId,
-  buildCenterOptions, buildCityOptions, buildDateOptions, buildCalendarDays,
-  formatDateLabel, detectBookingMode,
+  getSessionCenterName, getSessionCenterDisplayId, getSessionCenterDisplayIdType, getCenterKey,
+  getPrometricCodes, extractId, getSessionTestCenterId, buildCenterOptions,
+  buildCityOptions, buildDateOptions, buildCalendarDays, formatDateLabel,
+  detectBookingMode,
 } from "@/lib/booking-utils";
 import { getRealTestCenterNameById } from "@/lib/real-test-centers";
 
@@ -661,7 +662,14 @@ export default function BookingPage() {
             <span>Test Center *</span>
             <select value={selectedCenterId} onChange={(e) => setSelectedCenterId(e.target.value)} disabled={!centerOptions.length}>
               <option value="">{loadingSessions ? "Loading centers..." : "Select test center"}</option>
-              {centerOptions.map((item) => <option key={item.siteId} value={item.siteId}>{item.name} (Site #{item.siteId})</option>)}
+              {centerOptions.map((item) => {
+                const idLabel = item.displayId ? ` (${item.displayIdType === "site" ? "Site" : "Center"} #${item.displayId})` : "";
+                return (
+                  <option key={item.siteId} value={item.siteId}>
+                    {item.name}{idLabel}
+                  </option>
+                );
+              })}
             </select>
           </div>
           <div className="field-block">
@@ -669,12 +677,15 @@ export default function BookingPage() {
             <select value={sessionId} onChange={(e) => setSessionId(e.target.value)} disabled={!filteredSessions.length}>
               <option value="">{loadingSessions ? "Loading sessions..." : "Select session"}</option>
               {filteredSessions.map((item) => {
+                const displayId = getSessionCenterDisplayId(item);
+                const displayIdType = getSessionCenterDisplayIdType(item);
+                const idLabel = displayId ? ` (${displayIdType === "site" ? "Site" : "Center"} #${displayId})` : "";
                 const sid = getSessionSiteId(item);
                 const realName = testCenterMap.get(String(sid)) || getSessionCenterName(item);
                 const seats = item?.available_seats ?? item?.seats_available ?? item?.remaining_seats ?? null;
                 return (
                   <option key={getSessionId(item)} value={getSessionId(item)}>
-                    {realName} (Site #{sid}) | Session #{getSessionId(item)}{seats !== null && seats !== undefined ? ` | Seats: ${seats}` : ""}
+                    {realName}{idLabel} | Session #{getSessionId(item)}{seats !== null && seats !== undefined ? ` | Seats: ${seats}` : ""}
                   </option>
                 );
               })}
