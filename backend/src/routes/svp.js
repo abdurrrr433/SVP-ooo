@@ -83,6 +83,152 @@ function buildPath(basePath, query = {}) {
   return suffix ? `${basePath}?${suffix}` : basePath;
 }
 
+function normalizeString(value) {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function toPositiveNumber(value) {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function getSessionCenterNameValue(session) {
+  return normalizeString(
+    session?.test_center?.test_center_name || session?.test_center?.name || session?.test_center_name
+  );
+}
+
+function getSessionCenterCityValue(session) {
+  return normalizeString(
+    session?.test_center?.test_center_city || session?.test_center?.city || session?.city || session?.site_city
+  );
+}
+
+function getSessionCenterSiteIdValue(session) {
+  return toPositiveNumber(session?.test_center?.site_id ?? session?.site_id);
+}
+
+function getSessionCenterTestCenterIdValue(session) {
+  return toPositiveNumber(session?.test_center?.test_center_id ?? session?.test_center?.id);
+}
+
+function getSessionSectionValue(session) {
+  return normalizeString(session?.section || session?.require_section || session?.section_name);
+}
+
+const centerCache = new Map();
+const sectionCenterRules = {
+  Dhaka: {
+    cbt: { name: 'Prometric Dhaka — Banani', test_center_id: 9012, site_id: 50231 },
+    practical: { name: 'Prometric Dhaka — Uttara', test_center_id: 9013, site_id: 50244 },
+  },
+};
+
+async function resolveSessionCenter(session, token, detail) {
+  const sessionId = String(session?.id || '');
+  const candidateName = getSessionCenterNameValue(session);
+  const candidateCity = getSessionCenterCityValue(session);
+  const candidateSiteId = getSessionCenterSiteIdValue(session);
+  const candidateTestCenterId = getSessionCenterTestCenterIdValue(session);
+  const candidateAddress = normalizeString(
+    session?.test_center?.address || session?.address || session?.test_center?.address
+  );
+
+  if (candidateName) {
+    const result = {
+      test_center_id: candidateTestCenterId,
+      site_id: candidateSiteId,
+      name: candidateName,
+      city: candidateCity,
+      address: candidateAddress,
+    };
+
+    if (sessionId) centerCache.set(sessionId, result);
+    return result;
+  }
+
+  if (sessionId && centerCache.has(sessionId)) {
+    return centerCache.get(sessionId);
+  }
+
+  const mergedDetail = detail || null;
+  if (mergedDetail) {
+    const detailName = getSessionCenterNameValue(mergedDetail);
+    const detailCity = getSessionCenterCityValue(mergedDetail) || candidateCity;
+    const detailSiteId = getSessionCenterSiteIdValue(mergedDetail) ?? candidateSiteId;
+    const detailTestCenterId = getSessionCenterTestCenterIdValue(mergedDetail) ?? candidateTestCenterId;
+    const detailAddress = normalizeString(
+      mergedDetail?.test_center?.address || mergedDetail?.address || candidateAddress
+    );
+
+    if (detailName) {
+      const result = {
+        test_center_id: detailTestCenterId,
+        site_id: detailSiteId,
+        name: detailName,
+        city: detailCity,
+        address: detailAddress,
+      };
+      if (sessionId) centerCache.set(sessionId, result);
+      return result;
+    }
+  }
+
+  try {
+    const response = await svpRequest(buildPath(`/api/v1/individual_labor_space/exam_sessions/${sessionId}`, {}), {
+      method: 'GET',
+      token,
+    });
+    const detailNode = response?.exam_session || response;
+    const detailName = getSessionCenterNameValue(detailNode);
+    const detailCity = getSessionCenterCityValue(detailNode) || candidateCity;
+    const detailSiteId = getSessionCenterSiteIdValue(detailNode) ?? candidateSiteId;
+    const detailTestCenterId = getSessionCenterTestCenterIdValue(detailNode) ?? candidateTestCenterId;
+    const detailAddress = normalizeString(
+      detailNode?.test_center?.address || detailNode?.address || candidateAddress
+    );
+
+    if (detailName) {
+      const result = {
+        test_center_id: detailTestCenterId,
+        site_id: detailSiteId,
+        name: detailName,
+        city: detailCity,
+        address: detailAddress,
+      };
+      if (sessionId) centerCache.set(sessionId, result);
+      return result;
+    }
+  } catch {
+    // ignore detailed session lookup failure
+  }
+
+  const city = candidateCity;
+  const section = getSessionSectionValue(session);
+  const rule = city ? sectionCenterRules[city]?.[section || ''] : null;
+  if (rule) {
+    const result = {
+      test_center_id: rule.test_center_id,
+      site_id: rule.site_id,
+      name: rule.name,
+      city,
+      address: null,
+    };
+    if (sessionId) centerCache.set(sessionId, result);
+    return result;
+  }
+
+  const result = {
+    test_center_id: candidateTestCenterId,
+    site_id: candidateSiteId,
+    name: city ? `${city} Center` : 'Unknown Center',
+    city,
+    address: candidateAddress,
+  };
+  if (sessionId) centerCache.set(sessionId, result);
+  return result;
+}
+
 async function forward(req, method, basePath, body) {
   const token = await getSvpToken(req);
   return svpRequest(buildPath(basePath, req.query), { method, token, body });
@@ -137,7 +283,45 @@ router.get('/available-dates', async (req, res, next) => {
 
 router.get('/exam-sessions', async (req, res, next) => {
   try {
-    res.json(await forward(req, 'GET', '/api/v1/individual_labor_space/exam_sessions'));
+    const token = await getSvpToken(req);
+    const listData = await svpRequest(buildPath('/api/v1/individual_labor_space/exam_sessions', req.query), {
+      method: 'GET',
+      token,
+    });
+    const sessions = listData?.exam_sessions || [];
+
+    if (sessions.length > 0) {
+      const enriched = await Promise.all(
+        sessions.map(async (s) => {
+          let detail = null;
+          try {
+            const response = await svpRequest(
+              buildPath(`/api/v1/individual_labor_space/exam_sessions/${s.id}`, {}),
+              { method: 'GET', token }
+            );
+            detail = response?.exam_session || response;
+          } catch {
+            // ignore detailed session lookup failure
+          }
+
+          const mergedTc = { ...(s?.test_center || {}), ...(detail?.test_center || {}) };
+          const resolved = await resolveSessionCenter({ ...s, ...(detail || {}), test_center: mergedTc }, token, detail);
+          const test_center = { ...mergedTc, ...resolved };
+          return {
+            ...s,
+            ...(detail || {}),
+            test_center,
+            test_center_name:
+              resolved.name || s?.test_center_name || detail?.test_center?.name || detail?.test_center_name || test_center?.name,
+            available_seats: detail?.available_seats ?? s?.available_seats ?? detail?.seats_available ?? null,
+            total_seats: detail?.total_seats ?? s?.total_seats ?? detail?.seats_total ?? null,
+          };
+        })
+      );
+      listData.exam_sessions = enriched;
+    }
+
+    res.json(listData);
   } catch (error) {
     next(error);
   }
@@ -145,7 +329,20 @@ router.get('/exam-sessions', async (req, res, next) => {
 
 router.get('/exam-session/:id', async (req, res, next) => {
   try {
-    res.json(await forward(req, 'GET', `/api/v1/individual_labor_space/exam_sessions/${req.params.id}`));
+    const token = await getSvpToken(req);
+    const response = await svpRequest(
+      buildPath(`/api/v1/individual_labor_space/exam_sessions/${req.params.id}`, req.query),
+      { method: 'GET', token }
+    );
+    const examSession = response?.exam_session || response;
+    const resolved = await resolveSessionCenter(examSession, token, examSession);
+    const test_center = { ...(examSession?.test_center || {}), ...resolved };
+    const normalized = {
+      ...examSession,
+      test_center,
+      test_center_name: resolved.name || examSession?.test_center_name || examSession?.test_center?.name || test_center?.name,
+    };
+    res.json(response?.exam_session ? { ...response, exam_session: normalized } : normalized);
   } catch (error) {
     next(error);
   }
