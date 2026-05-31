@@ -417,8 +417,16 @@ export default function BookingPage() {
 
   async function bookReservation() {
     if (!sessionId) { setError("Select test center / session first"); return; }
-    try { await api(`/exam-session/${encodeURIComponent(sessionId)}?locale=en`); }
-    catch (err: any) { setError(err?.message || "Selected exam session is no longer available"); return; }
+
+    let resolvedSession: any = null;
+    try {
+      const response: any = await api(`/exam-session/${encodeURIComponent(sessionId)}?locale=en`);
+      resolvedSession = response?.exam_session || response;
+    } catch (err: any) {
+      setError(err?.message || "Selected exam session is no longer available");
+      return;
+    }
+
     const sessionCodes = getPrometricCodes(selectedSession);
     const effectiveLanguageCode = languageCode || selectedOccupation?.languageCodes?.[0]?.code || sessionCodes?.[0]?.code || sessionCodes?.[0]?.language_code || "";
     if (!effectiveLanguageCode) { setError("language_code is required. Select a language before booking."); return; }
@@ -431,11 +439,27 @@ export default function BookingPage() {
         const match = selectedOccupation.languageCodes.find(
           (lc: any) => lc.code?.toLowerCase() !== effectiveLanguageCode.toLowerCase() && effectiveLanguageCode.length <= 3
         );
-        // Actually search by checking if any prometric code's raw data has this language_code
         const allCodes = selectedOccupation?.raw?.category?.prometric_codes || selectedOccupation?.raw?.prometric_codes || [];
         const prometricMatch = allCodes.find((c: any) => c?.language_code === effectiveLanguageCode);
         if (prometricMatch?.code) rescheduleLanguageCode = prometricMatch.code;
       }
+    }
+
+    const requestSiteId = (() => {
+      if (resolvedSession?.test_center?.site_id) return Number(resolvedSession.test_center.site_id);
+      if (resolvedSession?.site_id) return Number(resolvedSession.site_id);
+      if (siteId) return Number(siteId);
+      return null;
+    })();
+    const requestSiteCity = String(
+      resolvedSession?.test_center?.site_city || resolvedSession?.test_center?.city || resolvedSession?.site_city || siteCity || selectedCity || ""
+    );
+
+    if (requestSiteId && String(requestSiteId) !== String(siteId)) {
+      setSiteId(String(requestSiteId));
+    }
+    if (requestSiteCity && requestSiteCity !== siteCity) {
+      setSiteCity(requestSiteCity);
     }
 
     setBooking(true); setError(""); setStatus("");
@@ -464,7 +488,8 @@ export default function BookingPage() {
           method: "POST", body: {
             exam_session_id: Number(sessionId), occupation_id: Number(selectedOccupationId),
             methodology: methodology || "in_person", language_code: effectiveLanguageCode,
-            site_id: siteId ? Number(siteId) : null, site_city: siteCity || selectedCity || null,
+            site_id: requestSiteId ? requestSiteId : null,
+            site_city: requestSiteCity || selectedCity || null,
             hold_id: holdId ? Number(holdId) : null,
           },
         });

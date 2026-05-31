@@ -228,6 +228,37 @@ const sectionCenterRules: Record<string, Record<string, { name: string; test_cen
   },
 };
 
+const STATIC_TEST_CENTERS: Record<number, { site_id: number; name: string; city: string }> = {
+  17: { site_id: 17, name: "Bangladesh Korea TTC Dhaka", city: "Dhaka" },
+  45: { site_id: 45, name: "Bangladesh German TTC", city: "Dhaka" },
+  54: { site_id: 54, name: "Rajshahi Technical Training Centre", city: "Rajshahi" },
+  71: { site_id: 71, name: "Sylhet Technical Training Center", city: "Sylhet" },
+  62: { site_id: 62, name: "Cumilla Technical Training Centre", city: "Cumilla" },
+  107: { site_id: 107, name: "Bogura Technical Training Centre", city: "Rajshahi" },
+  115: { site_id: 115, name: "BRTC Central Training Institute Gazipur", city: "Dhaka" },
+  156: { site_id: 156, name: "Khulna Technical Training Centre", city: "Khulna" },
+  168: { site_id: 168, name: "Chapainawabganj Technical Training Centre", city: "Rajshahi" },
+  171: { site_id: 171, name: "Jashore Technical Training Centre", city: "Khulna" },
+  181: { site_id: 181, name: "Narail Technical Training Centre", city: "Khulna" },
+  201: { site_id: 201, name: "Pabna Technical Training Centre", city: "Rajshahi" },
+  203: { site_id: 203, name: "Noakhali Technical Training Centre", city: "Cumilla" },
+  218: { site_id: 218, name: "Narsingdi Technical Training Center", city: "Dhaka" },
+  220: { site_id: 220, name: "Kishoreganj Technical Training Centre", city: "Dhaka" },
+  221: { site_id: 221, name: "Shariatpur Technical Training Centre", city: "Dhaka" },
+  223: { site_id: 223, name: "Manikganj Technical Training Center", city: "Dhaka" },
+  265: { site_id: 265, name: "Joypurhat Technical Training Center", city: "Rajshahi" },
+};
+
+function lookupStaticCenterByTestCenterId(id: number | null) {
+  return id && STATIC_TEST_CENTERS[id] ? STATIC_TEST_CENTERS[id] : null;
+}
+
+function lookupStaticCenterByName(name: string | null) {
+  if (!name) return null;
+  const key = name.trim().toLowerCase();
+  return Object.values(STATIC_TEST_CENTERS).find((center) => center.name.toLowerCase() === key) || null;
+}
+
 function normalizeString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
@@ -292,6 +323,13 @@ async function resolveSessionCenter(session: any, svpToken: string, detail: any 
         result.site_id = row.site_id;
         result.city = row.city || result.city;
         result.address = row.address || result.address;
+      } else {
+        const staticRow = lookupStaticCenterByTestCenterId(result.test_center_id) || lookupStaticCenterByName(result.name);
+        if (staticRow) {
+          result.site_id = staticRow.site_id;
+          result.city = result.city || staticRow.city;
+          result.address = result.address || null;
+        }
       }
     }
 
@@ -325,6 +363,13 @@ async function resolveSessionCenter(session: any, svpToken: string, detail: any 
           result.site_id = row.site_id;
           result.city = row.city || result.city;
           result.address = row.address || result.address;
+        } else {
+          const staticRow = lookupStaticCenterByTestCenterId(result.test_center_id) || lookupStaticCenterByName(result.name);
+          if (staticRow) {
+            result.site_id = staticRow.site_id;
+            result.city = result.city || staticRow.city;
+            result.address = result.address || null;
+          }
         }
       }
       if (sessionId) centerCache.set(sessionId, result);
@@ -355,6 +400,13 @@ async function resolveSessionCenter(session: any, svpToken: string, detail: any 
           result.site_id = row.site_id;
           result.city = row.city || result.city;
           result.address = row.address || result.address;
+        } else {
+          const staticRow = lookupStaticCenterByTestCenterId(result.test_center_id) || lookupStaticCenterByName(result.name);
+          if (staticRow) {
+            result.site_id = staticRow.site_id;
+            result.city = result.city || staticRow.city;
+            result.address = result.address || null;
+          }
         }
       }
       if (sessionId) centerCache.set(sessionId, result);
@@ -443,8 +495,9 @@ Deno.serve(async (req) => {
             } catch {
               // ignore detailed session lookup failure
             }
-            const d = detail?.exam_session || detail;
-            const mergedTc = { ...(s?.test_center || {}), ...(d?.test_center || {}) };
+            try {
+              const d = detail?.exam_session || detail;
+              const mergedTc = { ...(s?.test_center || {}), ...(d?.test_center || {}) };
               const tcid = getSessionTestCenterId({ ...s, ...(d || {}), test_center: mergedTc });
               if (tcid && !mergedTc?.name && !mergedTc?.test_center_name) {
                 try {
