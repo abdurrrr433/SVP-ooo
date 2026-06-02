@@ -204,13 +204,8 @@ function buildPath(basePath: string, queryString: string): string {
 }
 
 function getSessionTestCenterId(session: any): string {
-  const direct = session?.test_center_id || session?.test_center?.test_center_id || "";
-  if (direct) return String(direct);
-
-  const nestedId = session?.test_center?.id || "";
-  if (nestedId && String(nestedId) !== String(session?.id || "")) return String(nestedId);
-
-  return "";
+  const direct = session?.test_center_id || session?.test_center?.test_center_id || session?.test_center?.id || "";
+  return direct ? String(direct) : "";
 }
 
 const centerCache = new Map<string, {
@@ -287,11 +282,8 @@ function getSessionCenterSiteIdValue(session: any): number | null {
 function getSessionCenterTestCenterIdValue(session: any): number | null {
   const direct = toPositiveNumber(session?.test_center?.test_center_id);
   if (direct) return direct;
-
   const nestedId = toPositiveNumber(session?.test_center?.id);
-  const sessionId = toPositiveNumber(session?.id);
-  if (nestedId && nestedId !== sessionId) return nestedId;
-
+  if (nestedId) return nestedId;
   return null;
 }
 

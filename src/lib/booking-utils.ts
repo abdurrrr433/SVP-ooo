@@ -66,13 +66,8 @@ export function getSessionId(item: any): string {
 }
 
 export function getSessionTestCenterId(item: any): string {
-  const direct = item?.test_center_id || item?.test_center?.test_center_id || "";
-  if (direct) return String(direct);
-
-  const nestedId = item?.test_center?.id || "";
-  if (nestedId && String(nestedId) !== getSessionId(item)) return String(nestedId);
-
-  return "";
+  const direct = item?.test_center_id || item?.test_center?.test_center_id || item?.test_center?.id || "";
+  return direct ? String(direct) : "";
 }
 
 export function getSessionSiteId(item: any): string {
