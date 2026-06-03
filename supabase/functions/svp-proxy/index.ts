@@ -76,6 +76,7 @@ async function svpFetchRaw(
       Origin: SVP_ORIGIN,
       Referer: `${SVP_ORIGIN}/`,
       "User-Agent": SVP_UA,
+      "x-tenant-name": "svp-international",
     },
   });
 }
