@@ -487,7 +487,7 @@ export default function BookingPage() {
         // Normal new booking
         const data: any = await api("/exam-reservations", {
           method: "POST", body: {
-            exam_session_id: Number(sessionId), occupation_id: Number(selectedOccupationId),
+            exam_session_id: sessionId, occupation_id: Number(selectedOccupationId),
             methodology: methodology || "in_person", language_code: effectiveLanguageCode,
             site_id: requestSiteId ? requestSiteId : null,
             site_city: requestSiteCity || selectedCity || null,
