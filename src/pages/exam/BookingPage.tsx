@@ -401,10 +401,11 @@ export default function BookingPage() {
   async function createHold() {
     if (!sessionId) { setError("Select test center / session first"); return; }
     // SVP expects exam_session_id as array of (encrypted) string IDs — keep raw strings, do NOT cast to Number.
-    const sessionIds = Array.from(new Set(
-      (filteredSessions.length ? filteredSessions : [selectedSession])
-        .map((item) => String(getSessionId(item)).trim()).filter((item) => item.length > 0)
-    ));
+    const pool = (filteredSessions.length ? filteredSessions : (selectedSession ? [selectedSession] : []))
+      .map((item) => String(getSessionId(item)).trim())
+      .filter((item) => item.length > 0);
+    if (!pool.includes(String(sessionId))) pool.unshift(String(sessionId));
+    const sessionIds = Array.from(new Set(pool.filter(Boolean)));
     if (!sessionIds.length) { setError("No valid exam sessions found for hold creation"); return; }
     setCreatingHold(true); setError(""); setStatus("");
     try {
