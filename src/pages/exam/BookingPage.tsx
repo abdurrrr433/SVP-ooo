@@ -400,13 +400,23 @@ export default function BookingPage() {
 
   async function createHold() {
     if (!sessionId) { setError("Select test center / session first"); return; }
-    // SVP expects exam_session_id as array of (encrypted) string IDs — keep raw strings, do NOT cast to Number.
+    // SVP temporary_seats expects encrypted exam_session_id tokens from the list payload,
+    // not the numeric session id used by /exam-session/:id and reservations.
+    const getEncryptedSessionToken = (item: any) => {
+      const candidates = [
+        item?.exam_session_id,
+        item?.encrypted_exam_session_id,
+        item?.encrypted_id,
+        item?.session_token,
+        item?.token,
+      ];
+      return String(candidates.find((value) => typeof value === "string" && value.includes("--")) || "").trim();
+    };
     const pool = (filteredSessions.length ? filteredSessions : (selectedSession ? [selectedSession] : []))
-      .map((item) => String(getSessionId(item)).trim())
+      .map(getEncryptedSessionToken)
       .filter((item) => item.length > 0);
-    if (!pool.includes(String(sessionId))) pool.unshift(String(sessionId));
     const sessionIds = Array.from(new Set(pool.filter(Boolean)));
-    if (!sessionIds.length) { setError("No valid exam sessions found for hold creation"); return; }
+    if (!sessionIds.length) { setError("No encrypted SVP exam session tokens found for hold creation. Reload sessions and try again."); return; }
     setCreatingHold(true); setError(""); setStatus("");
     try {
       const data: any = await api("/temporary-seats", { method: "POST", body: { exam_session_id: sessionIds, methodology: methodology || "in_person" } });
@@ -414,7 +424,7 @@ export default function BookingPage() {
       setHoldId(String(nextHoldId || ""));
       // After hold is created, fetch the resolved exam session detail (numeric id) per SVP flow.
       const numericSessionId =
-        data?.exam_session?.id ?? data?.exam_session_id ?? data?.data?.exam_session?.id ?? data?.session_id ?? nextHoldId;
+        data?.exam_session?.id ?? data?.data?.exam_session?.id ?? data?.session_id ?? sessionId;
       if (numericSessionId) {
         try {
           const detail: any = await api(`/exam-session/${encodeURIComponent(numericSessionId)}?locale=en`);
