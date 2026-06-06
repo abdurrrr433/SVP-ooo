@@ -553,9 +553,13 @@ Deno.serve(async (req) => {
               }
               const resolved = await resolveSessionCenter({ ...s, ...(d || {}), test_center: mergedTc }, svpToken, d);
               const test_center = { ...mergedTc, ...resolved };
+              const encryptedExamSessionId =
+                [s?.exam_session_id, d?.exam_session_id, s?.encrypted_exam_session_id, d?.encrypted_exam_session_id, s?.encrypted_id, d?.encrypted_id]
+                  .find((value) => typeof value === "string" && value.includes("--"));
               return {
                 ...s,
                 ...(d || {}),
+                ...(encryptedExamSessionId ? { exam_session_id: encryptedExamSessionId } : {}),
                 test_center,
                 test_center_name:
                   resolved.name || s?.test_center_name || d?.test_center?.name || d?.test_center_name || test_center?.name,
