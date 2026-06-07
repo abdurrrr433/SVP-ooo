@@ -206,6 +206,21 @@ function buildPath(basePath: string, queryString: string): string {
   return suffix ? `${basePath}?${suffix}` : basePath;
 }
 
+function pickFirstArray(payload: any): any[] {
+  if (Array.isArray(payload)) return payload;
+  for (const key of ["test_centers", "exam_sessions", "data", "items", "results"]) {
+    const value = payload?.[key];
+    if (Array.isArray(value)) return value;
+  }
+  return [];
+}
+
+function stablePositiveId(value: string): number {
+  let hash = 0;
+  for (let i = 0; i < value.length; i++) hash = (hash * 31 + value.charCodeAt(i)) >>> 0;
+  return 900000 + (hash % 99999);
+}
+
 function getSessionTestCenterId(session: any): string {
   const direct = session?.test_center_id || session?.test_center?.test_center_id || session?.test_center?.id || "";
   return direct ? String(direct) : "";
