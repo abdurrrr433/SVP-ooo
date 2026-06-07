@@ -206,6 +206,21 @@ function buildPath(basePath: string, queryString: string): string {
   return suffix ? `${basePath}?${suffix}` : basePath;
 }
 
+function pickFirstArray(payload: any): any[] {
+  if (Array.isArray(payload)) return payload;
+  for (const key of ["test_centers", "exam_sessions", "data", "items", "results"]) {
+    const value = payload?.[key];
+    if (Array.isArray(value)) return value;
+  }
+  return [];
+}
+
+function stablePositiveId(value: string): number {
+  let hash = 0;
+  for (let i = 0; i < value.length; i++) hash = (hash * 31 + value.charCodeAt(i)) >>> 0;
+  return 900000 + (hash % 99999);
+}
+
 function getSessionTestCenterId(session: any): string {
   const direct = session?.test_center_id || session?.test_center?.test_center_id || session?.test_center?.id || "";
   return direct ? String(direct) : "";
@@ -217,6 +232,17 @@ const centerCache = new Map<string, {
   name: string;
   city: string | null;
   address: string | null;
+}>();
+
+const testCenterCache = new Map<number, {
+  id: number;
+  test_center_id: number | null;
+  site_id: number | null;
+  name: string;
+  city: string | null;
+  address: string | null;
+  available_seats?: number | null;
+  total_seats?: number | null;
 }>();
 
 const sectionCenterRules: Record<string, Record<string, { name: string; test_center_id: number; site_id: number }>> = {
@@ -483,6 +509,51 @@ async function resolveSessionCenter(session: any, svpToken: string, detail: any 
   return result;
 }
 
+async function buildTestCentersFromSessions(listData: any, svpToken: string) {
+  const sessions = pickFirstArray(listData);
+  const grouped = new Map<string, {
+    id: number;
+    test_center_id: number | null;
+    site_id: number | null;
+    name: string;
+    city: string | null;
+    address: string | null;
+    available_seats: number | null;
+    total_seats: number | null;
+    session_ids: string[];
+  }>();
+
+  await Promise.all(sessions.map(async (session: any) => {
+    const resolved = await resolveSessionCenter(session, svpToken, session);
+    const key = String(resolved.site_id || resolved.test_center_id || `${resolved.city || ""}:${resolved.name || ""}`);
+    const id = resolved.site_id || resolved.test_center_id || stablePositiveId(key);
+    const existing = grouped.get(key);
+    const available = toPositiveNumber(session?.available_seats ?? session?.seats_available);
+    const total = toPositiveNumber(session?.total_seats ?? session?.seats_total);
+    if (existing) {
+      existing.available_seats = (existing.available_seats || 0) + (available || 0);
+      existing.total_seats = (existing.total_seats || 0) + (total || 0);
+      if (session?.id) existing.session_ids.push(String(session.id));
+      return;
+    }
+    grouped.set(key, {
+      id,
+      test_center_id: resolved.test_center_id,
+      site_id: resolved.site_id,
+      name: resolved.name,
+      city: resolved.city,
+      address: resolved.address,
+      available_seats: available,
+      total_seats: total,
+      session_ids: session?.id ? [String(session.id)] : [],
+    });
+  }));
+
+  const centers = [...grouped.values()];
+  centers.forEach((center) => testCenterCache.set(center.id, center));
+  return { test_centers: centers, data: centers };
+}
+
 // ── Main handler ────────────────────────────────────────────────────
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -510,6 +581,38 @@ Deno.serve(async (req) => {
         } catch (err: any) {
           if (err?.statusCode !== 404 || i === paths.length - 1) throw err;
         }
+      }
+    }
+
+    if (req.method === "GET" && path === "/test-centers") {
+      try {
+        return json(await svpFetch(buildPath("/api/v1/individual_labor_space/test_centers", query), { method: "GET", token: svpToken }));
+      } catch (err: any) {
+        if (err?.statusCode !== 404) throw err;
+        const sessions = await svpFetch(buildPath("/api/v1/individual_labor_space/exam_sessions", query), { method: "GET", token: svpToken });
+        return json(await buildTestCentersFromSessions(sessions, svpToken));
+      }
+    }
+
+    const testCenterDetailMatch = path.match(/^\/test-centers\/([^/]+)$/);
+    if (req.method === "GET" && testCenterDetailMatch) {
+      const rawId = decodeURIComponent(testCenterDetailMatch[1]);
+      const numericId = Number(rawId);
+      try {
+        return json(await svpFetch(buildPath(`/api/v1/individual_labor_space/test_centers/${encodeURIComponent(rawId)}`, query), { method: "GET", token: svpToken }));
+      } catch (err: any) {
+        if (err?.statusCode !== 404) throw err;
+        const cached = Number.isFinite(numericId) ? testCenterCache.get(numericId) : null;
+        if (cached) return json({ test_center: cached, data: cached });
+        const staticRow = Number.isFinite(numericId) ? lookupStaticCenterByTestCenterId(numericId) : null;
+        if (staticRow) return json({ test_center: { id: numericId, test_center_id: numericId, ...staticRow }, data: { id: numericId, test_center_id: numericId, ...staticRow } });
+        const { data } = await getSupabase()
+          .from("test_centers")
+          .select("site_id,name,city,address")
+          .eq("site_id", numericId)
+          .maybeSingle();
+        if (data) return json({ test_center: { id: data.site_id, test_center_id: data.site_id, ...data }, data: { id: data.site_id, test_center_id: data.site_id, ...data } });
+        throw err;
       }
     }
 
