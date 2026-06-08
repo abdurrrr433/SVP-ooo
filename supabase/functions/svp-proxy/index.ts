@@ -320,6 +320,32 @@ function getSessionSectionValue(session: any): string | null {
   return normalizeString(session?.section || session?.require_section || session?.section_name);
 }
 
+// Guarantees every exam_session has a usable center_name so the
+// booking page test-center dropdown never has empty/unknown rows.
+function normalizeSessionShape(session: any) {
+  if (!session || typeof session !== "object") return session;
+  const tc = session.test_center || {};
+  const city =
+    tc?.city || tc?.test_center_city || session?.city || session?.site_city ||
+    (typeof session?.site_city === "object" ? session?.site_city?.name : null);
+  const resolvedName =
+    tc?.name || tc?.test_center_name ||
+    session?.test_center_name || session?.center_name ||
+    (city ? `${city} Exam Center` : "Unknown Center");
+  return {
+    ...session,
+    center_name: resolvedName,
+    test_center_name: session?.test_center_name || resolvedName,
+    test_center: { ...tc, name: tc?.name || resolvedName },
+    status: session?.status || "unknown",
+    category: { ...(session?.category || {}), exam_type: session?.category?.exam_type || "unknown" },
+    labors: Array.isArray(session?.labors) ? session.labors : [],
+    has_pending_practical: Array.isArray(session?.labors) &&
+      session.labors.some((l: any) => l?.reservation?.exam_result === "pending"),
+    is_active: session?.status === "in_progress",
+  };
+}
+
 async function lookupCenterByName(name: string, city: string | null) {
   const supabase = getSupabase();
   let query = supabase.from("test_centers").select("site_id,name,city,address").ilike("name", name);
