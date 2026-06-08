@@ -675,7 +675,7 @@ Deno.serve(async (req) => {
             }
           })
         );
-        listData.exam_sessions = enriched;
+        listData.exam_sessions = enriched.map(normalizeSessionShape);
       }
 
       return json(listData);
