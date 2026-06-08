@@ -691,11 +691,11 @@ Deno.serve(async (req) => {
         const examSession = response?.exam_session || response;
         const resolved = await resolveSessionCenter(examSession, svpToken, examSession);
         const test_center = { ...(examSession?.test_center || {}), ...resolved };
-        const normalized = {
+        const normalized = normalizeSessionShape({
           ...examSession,
           test_center,
           test_center_name: resolved.name || examSession?.test_center_name || examSession?.test_center?.name || test_center?.name,
-        };
+        });
         return json(response?.exam_session ? { ...response, exam_session: normalized } : normalized);
       }
     }
