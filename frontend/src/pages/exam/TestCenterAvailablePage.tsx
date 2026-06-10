@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import DashboardLayout from "@/components/DashboardLayout";
 import { api } from "@/lib/api";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import {
   pickArray,
   normalizeOccupation,
@@ -50,6 +51,9 @@ export default function TestCenterAvailablePage() {
   const [loadingDates, setLoadingDates] = useState(false);
   const [loadingSessions, setLoadingSessions] = useState(false);
   const [error, setError] = useState("");
+  const [liveWatch, setLiveWatch] = useState(true);
+  const [lastCheckedAt, setLastCheckedAt] = useState("");
+  const sessionCountRef = useRef(0);
 
   const selectedOccupation = useMemo(
     () => occupations.find((o) => String(o.id) === String(occupationId)) || null,
@@ -61,14 +65,20 @@ export default function TestCenterAvailablePage() {
   const dateOptions = useMemo(() => buildDateOptions(dateEntries, city), [dateEntries, city]);
 
   const cityFiltered = useMemo(
-    () =>
-      city
+    () => {
+      const base = city
         ? sessions.filter(
             (s) =>
               String(getSessionSiteCity(s)).trim().toLowerCase() ===
               city.trim().toLowerCase()
           )
-        : sessions,
+        : sessions;
+      // Only show sessions that are actually available (keep when seat info is unknown)
+      return base.filter((s) => {
+        const seats = s?.available_seats ?? s?.seats_available;
+        return seats == null || Number(seats) > 0;
+      });
+    },
     [sessions, city]
   );
   const centerOptions = useMemo(() => {
@@ -282,6 +292,46 @@ export default function TestCenterAvailablePage() {
     };
   }, [sessions]);
 
+  // Track session count for the live seat alert
+  useEffect(() => {
+    sessionCountRef.current = sessions.length;
+  }, [sessions]);
+
+  // SEAT AVAILABILITY ALERT: auto-check the live API every 30s and notify the
+  // moment new exam sessions open in the selected city.
+  useEffect(() => {
+    if (!liveWatch || !city || !date || !categoryId) return;
+    let active = true;
+    const interval = setInterval(async () => {
+      try {
+        const params = new URLSearchParams({
+          category_id: String(categoryId),
+          city: String(city),
+          exam_date: date,
+          locale: "en",
+        });
+        const data = await api(`/exam-sessions?${params.toString()}`);
+        if (!active) return;
+        const fresh = pickArray(data);
+        setLastCheckedAt(new Date().toLocaleTimeString());
+        if (fresh.length > sessionCountRef.current) {
+          toast.success(
+            `${fresh.length - sessionCountRef.current} new exam session(s) just opened in ${city} on ${date}!`
+          );
+          setSessions(fresh);
+        } else if (fresh.length < sessionCountRef.current) {
+          setSessions(fresh);
+        }
+      } catch {
+        /* keep watching silently */
+      }
+    }, 30000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [liveWatch, city, date, categoryId]);
+
   // Auto-select first center
   useEffect(() => {
     if (!centerOptions.length) {
@@ -322,6 +372,34 @@ export default function TestCenterAvailablePage() {
             {error}
           </div>
         )}
+
+        {/* Seat Availability Alert bar */}
+        <div
+          data-testid="seat-alert-bar"
+          className={`flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 ${
+            liveWatch ? "border-green-600/40 bg-green-500/10" : "border-border bg-card"
+          }`}
+        >
+          <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-foreground">
+            <input
+              type="checkbox"
+              data-testid="seat-alert-toggle"
+              checked={liveWatch}
+              onChange={(e) => setLiveWatch(e.target.checked)}
+            />
+            <span>Seat Availability Alert {liveWatch ? "ON" : "OFF"}</span>
+            {liveWatch && (
+              <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-green-600" />
+            )}
+          </label>
+          <span className="text-xs text-muted-foreground" data-testid="seat-alert-status">
+            {liveWatch
+              ? city && date
+                ? `Watching ${city} • ${date} — auto-check every 30s${lastCheckedAt ? ` • last: ${lastCheckedAt}` : ""}`
+                : "Select occupation, city & date to start watching"
+              : "Turn on to get alerted when new sessions open"}
+          </span>
+        </div>
 
         <div className="space-y-4 rounded-lg border border-border bg-card p-5">
           {/* 1. Occupation */}
@@ -473,6 +551,15 @@ export default function TestCenterAvailablePage() {
               className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
             >
               Continue to booking
+            </Link>
+            <Link
+              data-testid="auto-book-link"
+              to={`/exam/booking?occupationId=${occupationId}&categoryId=${categoryId}&siteCity=${encodeURIComponent(
+                city
+              )}&siteId=${centerKey}&examDate=${date}&autobook=1`}
+              className="ml-2 inline-flex items-center justify-center rounded-md border border-green-600 bg-green-600/10 px-4 py-2 text-sm font-semibold text-green-700 hover:bg-green-600/20"
+            >
+              ⚡ Auto-Book this selection
             </Link>
           </div>
         )}
