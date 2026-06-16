@@ -11,7 +11,6 @@ import {
   normalizeAvailableDateEntries,
   buildCityOptions,
   buildDateOptions,
-  buildCenterOptions,
   getSessionId,
   getSessionSiteCity,
   getSessionCenterDisplayId,
@@ -44,7 +43,6 @@ export default function TestCenterAvailablePage() {
   const [date, setDate] = useState("");
   const [sessions, setSessions] = useState<any[]>([]);
   const [centerNameMap, setCenterNameMap] = useState<Map<string, string>>(new Map());
-  const [centerKey, setCenterKey] = useState("");
   const [sessionId, setSessionId] = useState("");
 
   const [loadingOcc, setLoadingOcc] = useState(false);
@@ -81,18 +79,7 @@ export default function TestCenterAvailablePage() {
     },
     [sessions, city]
   );
-  const centerOptions = useMemo(() => {
-    const opts = buildCenterOptions(cityFiltered);
-    return opts.map((o) => ({ ...o, name: centerNameMap.get(o.siteId) || o.name }));
-  }, [cityFiltered, centerNameMap]);
-
-  const sessionOptions = useMemo(
-    () =>
-      centerKey
-        ? cityFiltered.filter((s) => getCenterKey(s) === String(centerKey))
-        : cityFiltered,
-    [cityFiltered, centerKey]
-  );
+  const sessionOptions = cityFiltered;
 
   // 1. Load occupations
   useEffect(() => {
@@ -132,7 +119,6 @@ export default function TestCenterAvailablePage() {
       setDate("");
       setDateEntries([]);
       setSessions([]);
-      setCenterKey("");
       setSessionId("");
       if (!occupationId || !categoryId) return;
       setLoadingDates(true);
@@ -174,7 +160,6 @@ export default function TestCenterAvailablePage() {
     let active = true;
     (async () => {
       setSessions([]);
-      setCenterKey("");
       setSessionId("");
       if (!city || !date || !categoryId) return;
       setLoadingSessions(true);
@@ -332,16 +317,6 @@ export default function TestCenterAvailablePage() {
     };
   }, [liveWatch, city, date, categoryId]);
 
-  // Auto-select first center
-  useEffect(() => {
-    if (!centerOptions.length) {
-      setCenterKey("");
-      return;
-    }
-    const has = centerOptions.some((o) => String(o.siteId) === String(centerKey));
-    if (!centerKey || !has) setCenterKey(String(centerOptions[0].siteId));
-  }, [centerOptions, centerKey]);
-
   // Auto-select first session
   useEffect(() => {
     if (!sessionOptions.length) {
@@ -352,7 +327,6 @@ export default function TestCenterAvailablePage() {
     if (!sessionId || !has) setSessionId(String(getSessionId(sessionOptions[0])));
   }, [sessionOptions, sessionId]);
 
-  const selectedCenter = centerOptions.find((o) => String(o.siteId) === String(centerKey));
   const selectedSession = sessionOptions.find(
     (s) => String(getSessionId(s)) === String(sessionId)
   );
@@ -465,40 +439,24 @@ export default function TestCenterAvailablePage() {
           {/* Live real test centers for selected city */}
           {city && date && <CityCentersPanel city={city} />}
 
-          {/* 4. Test Center */}
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium text-foreground">
-              4. Test Center{" "}
-              {loadingSessions && <span className="text-muted-foreground">(loading…)</span>}
-            </label>
-            <select
-              data-testid="tca-center-select"
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              value={centerKey}
-              onChange={(e) => setCenterKey(e.target.value)}
-              disabled={!date || loadingSessions || !centerOptions.length}
-            >
-              <option value="">Select test center</option>
-              {centerOptions.map((o) => {
-                const idLabel = o.displayId ? ` (${o.displayIdType === "site" ? "Site" : "Center"} #${o.displayId})` : "";
-                return (
-                  <option key={o.siteId} value={o.siteId}>
-                    {o.name}{idLabel} {o.city ? `— ${o.city}` : ""}
-                  </option>
-                );
-              })}
-            </select>
+          {/* About Test Center info */}
+          <div
+            data-testid="test-center-info-note"
+            className="rounded-md border border-dashed border-border bg-muted/30 p-3 text-xs text-muted-foreground"
+          >
+            <span className="block font-semibold text-foreground">About Test Center Selection</span>
+            SVP assigns the specific test center after your reservation is confirmed. Pick a session below; the real center name &amp; ID will be revealed on the My Bookings page.
           </div>
 
-          {/* 5. Exam Session ID */}
+          {/* 4. Exam Session ID */}
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-foreground">5. Exam Session</label>
+            <label className="text-sm font-medium text-foreground">4. Exam Session</label>
             <select
               data-testid="tca-session-select"
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               value={sessionId}
               onChange={(e) => setSessionId(e.target.value)}
-              disabled={!centerKey || !sessionOptions.length}
+              disabled={!date || loadingSessions || !sessionOptions.length}
             >
               <option value="">Select session</option>
               {sessionOptions.map((s, idx) => {
@@ -538,28 +496,25 @@ export default function TestCenterAvailablePage() {
               <dt className="text-muted-foreground">Date</dt>
               <dd className="text-foreground">{date}</dd>
               <dt className="text-muted-foreground">Test Center</dt>
-              <dd className="text-foreground">{selectedCenter?.name}</dd>
+              <dd className="text-foreground">{resolveCenterDisplayName(
+                centerNameMap.get(String(getCenterKey(selectedSession))) || selectedSession?.test_center?.name,
+                getSessionSiteCity(selectedSession) || city,
+                getSessionTestCenterId(selectedSession),
+                getSessionSiteId(selectedSession)
+              ) || "TBD — revealed after booking"}</dd>
               <dt className="text-muted-foreground">Test Center ID</dt>
               <dd className="text-foreground">{getSessionTestCenterId(selectedSession) || getSessionSiteId(selectedSession) || "—"}</dd>
               <dt className="text-muted-foreground">Exam Session ID</dt>
               <dd className="break-all font-semibold text-foreground">{sessionId}</dd>
             </dl>
             <Link
+              data-testid="continue-to-booking-link"
               to={`/exam/booking?occupationId=${occupationId}&categoryId=${categoryId}&siteCity=${encodeURIComponent(
                 city
-              )}&siteId=${centerKey}&examDate=${date}`}
+              )}&examDate=${date}`}
               className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
             >
               Continue to booking
-            </Link>
-            <Link
-              data-testid="auto-book-link"
-              to={`/exam/booking?occupationId=${occupationId}&categoryId=${categoryId}&siteCity=${encodeURIComponent(
-                city
-              )}&siteId=${centerKey}&examDate=${date}&autobook=1`}
-              className="ml-2 inline-flex items-center justify-center rounded-md border border-green-600 bg-green-600/10 px-4 py-2 text-sm font-semibold text-green-700 hover:bg-green-600/20"
-            >
-              ⚡ Auto-Book this selection
             </Link>
           </div>
         )}

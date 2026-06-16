@@ -52,10 +52,6 @@ export default function BookingPage() {
   const [occupationSearch, setOccupationSearch] = useState("");
   const [isOccupationOpen, setIsOccupationOpen] = useState(false);
   const occupationRef = useRef<HTMLDivElement>(null);
-  const [autoBook, setAutoBook] = useState(() => searchParams.get("autobook") === "1");
-  const [autoBookStatus, setAutoBookStatus] = useState("");
-  const [autoAttempts, setAutoAttempts] = useState(0);
-  const [lastCheckAt, setLastCheckAt] = useState("");
 
   const selectedOccupation = useMemo(
     () => occupations.find((item) => String(item.id) === String(selectedOccupationId)) || null,
@@ -78,23 +74,7 @@ export default function BookingPage() {
     },
     [sessions, selectedCity]
   );
-  const centerOptions = useMemo(() => {
-    const options = buildCenterOptions(cityFilteredSessions);
-    // Enrich with real test center names from the map + verified real list
-    return options.map((opt) => ({
-      ...opt,
-      name: resolveCenterDisplayName(
-        testCenterMap.get(opt.siteId) || opt.name,
-        opt.city,
-        opt.displayId,
-        opt.siteId
-      ),
-    }));
-  }, [cityFilteredSessions, testCenterMap]);
-  const filteredSessions = useMemo(
-    () => selectedCenterId ? cityFilteredSessions.filter((item) => getCenterKey(item) === String(selectedCenterId)) : cityFilteredSessions,
-    [cityFilteredSessions, selectedCenterId]
-  );
+  const filteredSessions = cityFilteredSessions;
   const selectedSession = useMemo(
     () => filteredSessions.find((item) => String(getSessionId(item)) === String(sessionId)) || null,
     [filteredSessions, sessionId]
@@ -166,11 +146,11 @@ export default function BookingPage() {
     setLanguageCode((prev) => prev || String(selectedOccupation.languageCodes[0]?.code || ""));
     setMethodology(String(selectedOccupation.methodology || "in_person"));
     setSelectedCity(""); setAvailableDate(""); setAvailableDateEntries([]); setSessions([]);
-    setSelectedCenterId(""); setSessionId(""); setHoldId(""); setReservationId("");
+    setSessionId(""); setHoldId(""); setReservationId("");
   }, [selectedOccupation]);
 
   useEffect(() => {
-    setAvailableDate(""); setSessions([]); setSelectedCenterId(""); setSessionId("");
+    setAvailableDate(""); setSessions([]); setSessionId("");
     setSiteId(""); setSiteCity(selectedCity || ""); setHoldId(""); setReservationId("");
     if (selectedCity) setStatus(`City selected: ${selectedCity}. Loading sessions for the selected date.`);
   }, [selectedCity]);
@@ -331,21 +311,10 @@ export default function BookingPage() {
   }, [sessions]);
 
   useEffect(() => {
-    if (!centerOptions.length) { setSelectedCenterId(""); return; }
-    const hasSelected = centerOptions.some((item) => String(item.siteId) === String(selectedCenterId));
-    if (!selectedCenterId || !hasSelected) setSelectedCenterId(String(centerOptions[0].siteId));
-  }, [centerOptions, selectedCenterId]);
-
-  useEffect(() => {
     if (!filteredSessions.length) { setSessionId(""); return; }
     const hasSelected = filteredSessions.some((item) => String(getSessionId(item)) === String(sessionId));
     if (!sessionId || !hasSelected) setSessionId(String(getSessionId(filteredSessions[0])));
   }, [filteredSessions, sessionId]);
-
-  useEffect(() => {
-    const selectedCenter = centerOptions.find((item) => String(item.siteId) === String(selectedCenterId));
-    if (selectedCenter) { setSiteId(String(selectedCenter.siteId || "")); setSiteCity(String(selectedCenter.city || "")); }
-  }, [selectedCenterId, centerOptions]);
 
   useEffect(() => {
     if (!selectedSession) return;
@@ -605,118 +574,8 @@ export default function BookingPage() {
     setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
   }
 
-  // ── AUTO-BOOKING: poll live API, the moment a seat opens → hold → confirm reservation ──
-  // URL-param fallbacks make auto-booking immune to page-init state resets.
-  const effOccupationId = selectedOccupationId || String(searchParams.get("occupationId") || "");
-  const effCategoryId = categoryId || String(searchParams.get("categoryId") || "");
-  const effCity = selectedCity || String(searchParams.get("siteCity") || "");
-  const effDate = availableDate || normalizeDateValue(String(searchParams.get("examDate") || ""));
-
-  async function autoBookAttempt(): Promise<boolean> {
-    // Language is mandatory for the reservation — wait until occupation data is loaded.
-    const langCode =
-      languageCode ||
-      selectedOccupation?.languageCodes?.[0]?.code ||
-      occupations.find((o) => String(o.id) === String(effOccupationId))?.languageCodes?.[0]?.code ||
-      "";
-    if (!langCode) {
-      setAutoBookStatus("Waiting for occupation/language data to load…");
-      return false;
-    }
-
-    const params = new URLSearchParams({
-      category_id: String(effCategoryId),
-      city: String(effCity),
-      exam_date: effDate,
-      locale: "en",
-    });
-    const data: any = await api(`/exam-sessions?${params.toString()}`);
-    const list = pickArray(data).filter((s: any) => {
-      const seats = s?.available_seats ?? s?.seats_available;
-      return seats == null || Number(seats) > 0;
-    });
-    if (!list.length) return false;
-
-    const target = list[0];
-    const encId =
-      [target?.exam_session_id, target?.encrypted_exam_session_id, target?.encrypted_id, target?.id]
-        .map((v: any) => String(v ?? ""))
-        .find((v: string) => v.includes("--")) || String(target?.id ?? "");
-    if (!encId) return false;
-
-    // 1. Temporary seat hold
-    const hold: any = await api("/temporary-seats", {
-      method: "POST",
-      body: { exam_session_id: [encId], methodology: methodology || "in_person" },
-    });
-    const newHoldId = extractId(hold, ["id", "hold_id", "temporary_seat_id"]);
-    if (newHoldId) setHoldId(String(newHoldId));
-
-    // 2. Confirm reservation
-    const res: any = await api("/exam-reservations", {
-      method: "POST",
-      body: {
-        exam_session_id: encId,
-        occupation_id: Number(selectedOccupationId),
-        methodology: methodology || "in_person",
-        language_code: langCode,
-        site_id: null,
-        site_city: selectedCity || null,
-        hold_id: newHoldId ? Number(newHoldId) : null,
-      },
-    });
-    const rid = extractId(res, ["id", "reservation_id", "exam_reservation_id"]);
-    if (!rid) return false;
-
-    setReservationId(String(rid));
-    const centerName = resolveCenterDisplayName(
-      res?.test_center?.test_center_name || res?.test_center?.name,
-      selectedCity,
-      res?.test_center?.test_center_id,
-      res?.test_center?.site_id
-    );
-    setStatus(`AUTO-BOOKED ✓ Reservation #${rid} — ${centerName}`);
-    toast.success(`Auto-booking confirmed! Reservation #${rid} — ${centerName}`);
-    return true;
-  }
-
-  useEffect(() => {
-    if (!autoBook) { setAutoBookStatus(""); return; }
-    if (reservationId) { setAutoBookStatus(`Already booked — Reservation #${reservationId}`); return; }
-    if (!effOccupationId || !effCategoryId || !effCity || !effDate) {
-      setAutoBookStatus("Select occupation, city and date to start auto-booking");
-      return;
-    }
-    let active = true;
-    let running = false;
-    const checkOnce = async () => {
-      if (!active || running) return;
-      running = true;
-      setAutoAttempts((n) => n + 1);
-      setLastCheckAt(new Date().toLocaleTimeString());
-      try {
-        setAutoBookStatus("Checking live seats…");
-        const ok = await autoBookAttempt();
-        if (!active) return;
-        if (ok) {
-          setAutoBook(false);
-          setAutoBookStatus("✓ Booked! Auto-booking stopped.");
-        } else {
-          setAutoBookStatus((prev) =>
-            prev.startsWith("Waiting") ? prev : `No open session yet in ${effCity} on ${effDate} — watching live…`
-          );
-        }
-      } catch (err: any) {
-        if (active) setAutoBookStatus(`Attempt failed: ${err?.message || "error"} — retrying…`);
-      } finally {
-        running = false;
-      }
-    };
-    checkOnce();
-    const interval = setInterval(checkOnce, 20000);
-    return () => { active = false; clearInterval(interval); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoBook, effOccupationId, effCategoryId, effCity, effDate, reservationId]);
+  // ── Auto-Booking removed: SVP API doesn't expose test_center info pre-booking ──
+  // (See PRD — proved exhaustively in June 2026 probe session)
 
   function shiftCalendarMonth(delta: number) {
     const base = new Date(`${calendarBaseMonth}-01T00:00:00`);
@@ -837,21 +696,13 @@ export default function BookingPage() {
           {!loadingDates && selectedCity && !availableDates.length ? (
             <small className="error-text">No available dates found yet. Try another city or occupation.</small>
           ) : null}
-          <div className="field-block">
-            <span>Test Center *</span>
-            <select value={selectedCenterId} onChange={(e) => setSelectedCenterId(e.target.value)} disabled={!centerOptions.length}>
-              <option value="">{loadingSessions ? "Loading centers..." : "Select test center"}</option>
-              {centerOptions.map((item) => {
-                const idLabel = item.displayId ? ` (${item.displayIdType === "site" ? "Site" : "Center"} #${item.displayId})` : "";
-                return (
-                  <option key={item.siteId} value={item.siteId}>
-                    {item.name}{idLabel}
-                  </option>
-                );
-              })}
-            </select>
-          </div>
           {selectedCity && availableDate ? <CityCentersPanel city={selectedCity} /> : null}
+          <div className="field-block" data-testid="test-center-info-note" style={{ gridColumn: "1 / -1", background: "#f8fafc", border: "1px dashed #cbd5e1", borderRadius: "8px", padding: "10px 14px" }}>
+            <span style={{ fontWeight: 600, fontSize: "13px", color: "#334155" }}>About Test Center Selection</span>
+            <p style={{ margin: "4px 0 0", fontSize: "12px", color: "#64748b", lineHeight: 1.5 }}>
+              SVP assigns the specific test center after your reservation is confirmed. Pick a session below; the real center name &amp; ID will be revealed in your reservation receipt and on the My Bookings page.
+            </p>
+          </div>
           <div className="field-block">
             <span>Exam Session *</span>
             <select value={sessionId} onChange={(e) => setSessionId(e.target.value)} disabled={!filteredSessions.length}>
@@ -924,46 +775,6 @@ export default function BookingPage() {
           )}
         </div>
 
-        {/* AUTO-BOOKING panel */}
-        {searchParams.get("reschedule") !== "1" && (
-          <div
-            data-testid="auto-booking-panel"
-            style={{
-              marginTop: "14px", borderRadius: "10px", padding: "14px 16px",
-              border: autoBook ? "1px solid #16a34a" : "1px solid #e2e8f0",
-              background: autoBook ? "#f0fdf4" : "#f8fafc",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
-              <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontWeight: 600, fontSize: "14px" }}>
-                <input
-                  type="checkbox"
-                  data-testid="auto-book-toggle"
-                  checked={autoBook}
-                  onChange={(e) => setAutoBook(e.target.checked)}
-                />
-                <span style={{ color: autoBook ? "#16a34a" : "#334155" }}>
-                  AUTO-BOOKING {autoBook ? "ON — watching live seats" : "OFF"}
-                </span>
-                {autoBook && (
-                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#16a34a", display: "inline-block", animation: "pulse 1.5s infinite" }} />
-                )}
-              </label>
-              <span style={{ fontSize: "12px", color: "#64748b" }}>
-                Checks every 20s{autoAttempts > 0 ? ` • ${autoAttempts} checks` : ""}{lastCheckAt ? ` • last: ${lastCheckAt}` : ""}
-              </span>
-            </div>
-            {autoBookStatus && (
-              <p data-testid="auto-book-status" style={{ margin: "8px 0 0", fontSize: "13px", color: autoBookStatus.startsWith("✓") ? "#16a34a" : "#475569" }}>
-                {autoBookStatus}
-              </p>
-            )}
-            <p style={{ margin: "6px 0 0", fontSize: "12px", color: "#94a3b8" }}>
-              The moment a seat opens for your selected occupation + city + date, the system automatically creates a hold and confirms the reservation.
-            </p>
-          </div>
-        )}
-
         {/* Reschedule Confirmation Dialog */}
         {showRescheduleConfirm && (
           <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }}>
@@ -993,7 +804,12 @@ export default function BookingPage() {
                     <div><span style={{ color: "#888" }}>Date:</span> <strong>{availableDate || "-"}</strong></div>
                     <div><span style={{ color: "#888" }}>Site:</span> <strong>#{siteId || "-"}</strong></div>
                     <div><span style={{ color: "#888" }}>City:</span> <strong>{siteCity || selectedCity || "-"}</strong></div>
-                    <div><span style={{ color: "#888" }}>Center:</span> <strong>{centerOptions.find(c => String(c.siteId) === String(selectedCenterId))?.name || "-"}</strong></div>
+                    <div><span style={{ color: "#888" }}>Center:</span> <strong>{resolveCenterDisplayName(
+                      testCenterMap.get(String(getSessionSiteId(selectedSession || {}))) || (selectedSession as any)?.test_center?.name,
+                      getSessionSiteCity(selectedSession || {}) || selectedCity,
+                      getSessionTestCenterId(selectedSession || {}),
+                      getSessionSiteId(selectedSession || {})
+                    ) || "TBD (revealed at booking)"}</strong></div>
                   </div>
                 </div>
               </div>
