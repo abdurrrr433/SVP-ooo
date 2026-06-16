@@ -653,7 +653,6 @@ export default function BookingPage() {
     if (newHoldId) setHoldId(String(newHoldId));
 
     // 2. Confirm reservation
-    const langCode = languageCode || selectedOccupation?.languageCodes?.[0]?.code || "";
     const res: any = await api("/exam-reservations", {
       method: "POST",
       body: {
