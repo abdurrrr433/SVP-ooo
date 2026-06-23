@@ -5,14 +5,13 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   pickArray, normalizeOccupation, normalizeDateValue,
   normalizeAvailableDateEntries, getSessionId, getSessionSiteId, getSessionSiteCity,
-  getSessionCenterName, getSessionCenterDisplayId, getSessionCenterDisplayIdType, getCenterKey,
-  getPrometricCodes, extractId, getSessionTestCenterId, buildCenterOptions,
+  getSessionCenterName, getCenterKey,
+  getPrometricCodes, extractId, getSessionTestCenterId,
   buildCityOptions, buildDateOptions, buildCalendarDays, formatDateLabel,
   detectBookingMode,
 } from "@/lib/booking-utils";
 import { getRealTestCenterNameById, resolveCenterDisplayName } from "@/lib/real-test-centers";
 import { CityCentersPanel } from "@/components/CityCentersPanel";
-import { toast } from "sonner";
 
 
 
@@ -29,7 +28,6 @@ export default function BookingPage() {
   const [calendarMonth, setCalendarMonth] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [methodology, setMethodology] = useState("in_person");
-  const [selectedCenterId, setSelectedCenterId] = useState("");
   const [siteId, setSiteId] = useState("");
   const [siteCity, setSiteCity] = useState("");
   const [sessionId, setSessionId] = useState("");
@@ -131,7 +129,7 @@ export default function BookingPage() {
     if (searchParams.get("categoryId")) setCategoryId(String(searchParams.get("categoryId")));
     if (searchParams.get("languageCode")) setLanguageCode(String(searchParams.get("languageCode")));
     if (searchParams.get("siteCity")) setSelectedCity(String(searchParams.get("siteCity")));
-    if (searchParams.get("siteId")) { setSelectedCenterId(String(searchParams.get("siteId"))); setSiteId(String(searchParams.get("siteId"))); }
+    if (searchParams.get("siteId")) { setSiteId(String(searchParams.get("siteId"))); }
     if (searchParams.get("siteCity")) setSiteCity(String(searchParams.get("siteCity")));
     if (searchParams.get("examDate")) {
       const examDate = normalizeDateValue(String(searchParams.get("examDate")));
