@@ -68,14 +68,14 @@ Use these Railway settings for the backend service:
 - Health Check Path: `/health`
 
 Railway-provided runtime variables are automatic. You should not add them manually:
-- `RAILWAY_PUBLIC_DOMAIN=aci-api-production.up.railway.app`
+- `RAILWAY_PUBLIC_DOMAIN=svp-ooo-production-de1a.up.railway.app`
 - `RAILWAY_PRIVATE_DOMAIN=aci-api.railway.internal`
 - `RAILWAY_TCP_APPLICATION_PORT=4000`
 
 Required backend variables you must set manually in Railway:
 - `NODE_ENV=production`
 - `APP_NAME=SVP Backend API`
-- `CORS_ORIGINS=https://svp-book.vercel.app,https://svp-book-abdur-razzak-s-projects.vercel.app`
+- `CORS_ORIGINS=svp-ooo.vercel.app`
 - `JWT_ACCESS_SECRET=<strong-random-secret>`
 - `JWT_REFRESH_SECRET=<strong-random-secret>`
 - `ACCESS_TOKEN_TTL_SECONDS=900`
@@ -93,7 +93,7 @@ Database URL rule:
 - Railway backend service uses Railway internal database URL.
 
 Expected live health URL:
-- `https://aci-api-production.up.railway.app/health`
+- `https://svp-ooo-production-de1a.up.railway.app/health`
 
 Expected production flow:
 - `https://svp-book.vercel.app` -> frontend
